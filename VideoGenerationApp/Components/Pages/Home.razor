@@ -1,7 +1,144 @@
 ﻿@page "/"
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Video Generation App</PageTitle>
 
-<h1>Hello, world!</h1>
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-lg-8">
+            <h1 class="display-4 fw-bold text-primary mb-4">
+                <i class="bi bi-camera-video text-primary me-3"></i>
+                Video Generation App
+            </h1>
+            
+            <p class="lead mb-4">
+                Transform your ideas into structured video content using the power of AI and local language models.
+            </p>
 
-Welcome to your new app.
+            <div class="row g-4 mb-5">
+                <div class="col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-primary">
+                                <i class="bi bi-robot me-2"></i>
+                                AI-Powered Content Generation
+                            </h5>
+                            <p class="card-text">
+                                Leverage Ollama's local language models to generate structured JSON output for video scenes, including narratives, emotions, visual descriptions, and avatar actions.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-md-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-success">
+                                <i class="bi bi-diagram-3 me-2"></i>
+                                Structured Output
+                            </h5>
+                            <p class="card-text">
+                                Generate detailed video scene descriptions with specific fields: narrative, tone, emotion, voice style, visual description, and video actions for complete scene planning.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <h3 class="mb-3">How It Works</h3>
+            <div class="row g-3 mb-4">
+                <div class="col-12">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                            <strong>1</strong>
+                        </div>
+                        <div>
+                            <h6 class="mb-1">Connect to Ollama</h6>
+                            <small class="text-muted">Choose from available local language models running on your Ollama instance</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                            <strong>2</strong>
+                        </div>
+                        <div>
+                            <h6 class="mb-1">Provide Your Topic</h6>
+                            <small class="text-muted">Enter a topic or concept you want to create video content about</small>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-12">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                            <strong>3</strong>
+                        </div>
+                        <div>
+                            <h6 class="mb-1">Generate Structured Content</h6>
+                            <small class="text-muted">Receive detailed JSON output with all the components needed for video production</small>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="alert alert-info d-flex align-items-center" role="alert">
+                <i class="bi bi-info-circle me-2"></i>
+                <div>
+                    <strong>Privacy First:</strong> This application uses local Ollama models, ensuring your data stays on your machine and maintains complete privacy.
+                </div>
+            </div>
+
+            <div class="d-flex gap-3 mt-4">
+                <a href="/ollama-models" class="btn btn-primary btn-lg">
+                    <i class="bi bi-arrow-right me-2"></i>
+                    Get Started
+                </a>
+                <a href="https://ollama.ai" target="_blank" class="btn btn-outline-secondary btn-lg">
+                    <i class="bi bi-box-arrow-up-right me-2"></i>
+                    Learn About Ollama
+                </a>
+            </div>
+        </div>
+
+        <div class="col-lg-4">
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-gear me-2"></i>
+                        Features
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-3">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Local AI model integration with Ollama
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Structured JSON output for video scenes
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Narrative and visual description generation
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Emotion and tone specification
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Avatar action recommendations
+                        </li>
+                        <li class="mb-0">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            Real-time model status and management
+                        </li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
