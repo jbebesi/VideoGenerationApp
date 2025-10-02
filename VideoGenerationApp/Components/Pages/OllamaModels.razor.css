@@ -1,0 +1,36 @@
+/* OllamaModels.razor - Component Styles */
+
+.tooltip-icon {
+    cursor: help;
+    margin-left: 5px;
+    color: #6c757d;
+}
+
+.parameter-section {
+    background-color: #f8f9fa;
+    border: 1px solid #dee2e6;
+    border-radius: 0.375rem;
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+.parameter-section h5 {
+    color: #495057;
+    margin-bottom: 0.75rem;
+    font-weight: 600;
+}
+
+.form-group {
+    margin-bottom: 1rem;
+}
+
+.form-group label {
+    font-weight: 500;
+    margin-bottom: 0.25rem;
+}
+
+.param-description {
+    font-size: 0.875rem;
+    color: #6c757d;
+    margin-top: 0.25rem;
+}
