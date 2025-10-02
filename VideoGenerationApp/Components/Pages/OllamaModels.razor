@@ -10,43 +10,6 @@
 
 <PageTitle>Ollama Models - Video Generation App</PageTitle>
 
-<style>
-    .tooltip-icon {
-        cursor: help;
-        margin-left: 5px;
-        color: #6c757d;
-    }
-    
-    .parameter-section {
-        background-color: #f8f9fa;
-        border: 1px solid #dee2e6;
-        border-radius: 0.375rem;
-        padding: 1rem;
-        margin-bottom: 1rem;
-    }
-    
-    .parameter-section h5 {
-        color: #495057;
-        margin-bottom: 0.75rem;
-        font-weight: 600;
-    }
-    
-    .form-group {
-        margin-bottom: 1rem;
-    }
-    
-    .form-group label {
-        font-weight: 500;
-        margin-bottom: 0.25rem;
-    }
-    
-    .param-description {
-        font-size: 0.875rem;
-        color: #6c757d;
-        margin-top: 0.25rem;
-    }
-</style>
-
 <div class="container-fluid">
     <div class="row">
         <div class="col-12">
@@ -197,23 +160,6 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="format">
-                                Output Format
-                                <i class="bi bi-question-circle tooltip-icon" title="Specifies the expected output format. 'json' forces structured JSON output for parsing, 'text' provides plain text, 'markdown' gives formatted text."></i>
-                            </label>
-                            <select id="format" class="form-select" @bind="format">
-                                <option value="json">JSON (Structured)</option>
-                                <option value="text">Plain Text</option>
-                                <option value="markdown">Markdown</option>
-                            </select>
-                            <div class="param-description">
-                                JSON format is recommended for structured video content generation.
-                            </div>
-                        </div>
-                    </div>
-                    
-                    <div class="col-md-6">
-                        <div class="form-group">
                             <label for="keepAlive">
                                 Keep Alive Duration
                                 <i class="bi bi-question-circle tooltip-icon" title="How long to keep the model loaded in memory after request completion. Longer = faster subsequent requests but more memory usage. Use '3m' for 3 minutes, '1h' for 1 hour, '0' to unload immediately."></i>
@@ -243,7 +189,7 @@
             <!-- Action Buttons -->
             <div class="d-flex gap-2 mb-4">
                 <button class="btn btn-success" @onclick="SendPrompt" disabled="@(isLoading || string.IsNullOrWhiteSpace(prompt) || string.IsNullOrEmpty(selectedModel))">
-                    <i class="bi bi-play-fill me-2"></i>Generate Video Content
+                    <i class="bi bi-play-fill me-2"></i>Generate prompt template
                 </button>
                 <button class="btn btn-outline-secondary" @onclick="ResetParameters">
                     <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
@@ -310,7 +256,6 @@
     float temperature = 0.3f;
     float topP = 0.7f;
     float numPredictions = 1f;
-    string format = "json";
     string keepAlive = "3m";
     bool stream = false;
 
@@ -344,7 +289,6 @@
         temperature = 0.3f;
         topP = 0.7f;
         numPredictions = 1f;
-        format = "json";
         keepAlive = "3m";
         stream = false;
         Logger.LogInformation("Parameters reset to defaults");
@@ -392,8 +336,8 @@
         }
 
         Logger.LogInformation("Sending prompt to model: {Model}. Prompt length: {Len}", selectedModel, prompt.Length);
-        Logger.LogInformation("Parameters: MaxTokens={MaxTokens}, Temperature={Temperature}, TopP={TopP}, Format={Format}", 
-            maxTokens, temperature, topP, format);
+        Logger.LogInformation("Parameters: MaxTokens={MaxTokens}, Temperature={Temperature}, TopP={TopP}, Format=json", 
+            maxTokens, temperature, topP);
         
         try
         {
@@ -404,7 +348,7 @@
                 model = selectedModel!,
                 prompt = formattedPrompt,
                 stream = stream,
-                format = format,
+                format = "json",
                 keep_alive = keepAlive,
                 max_tokens = maxTokens,
                 temperature = temperature,
