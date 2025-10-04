@@ -8,5 +8,20 @@ namespace VideoGenerationApp.Dto
         public string voice_style { get; set; } = string.Empty;
         public string visual_description { get; set; } = string.Empty;
         public List<string> video_actions { get; set; } = new();
+        
+        /// <summary>
+        /// Audio-specific instructions and preferences for the video scene
+        /// </summary>
+        public AudioSection audio { get; set; } = new();
+        
+        /// <summary>
+        /// Path to the generated audio file (relative to wwwroot or absolute path)
+        /// </summary>
+        public string audio_file_path { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Timestamp when the audio was generated
+        /// </summary>
+        public DateTimeOffset? audio_generated_at { get; set; }
     }
 }

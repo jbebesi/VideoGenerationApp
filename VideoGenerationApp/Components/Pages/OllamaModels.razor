@@ -62,14 +62,22 @@
                         }
                         else
                         {
-                            @foreach (var model in models)
+                            @foreach (var modelDetail in modelDetails)
                             {
-                                <option value="@model" selected="@(model == selectedModel)">@model</option>
+                                var displayText = modelDetail.name;
+                                if (modelDetail.size > 0)
+                                {
+                                    var sizeText = OllamaService.FormatFileSize(modelDetail.size);
+                                    displayText = $"{modelDetail.name} ({sizeText})";
+                                }
+                                <option value="@modelDetail.name" selected="@(modelDetail.name == selectedModel)">
+                                    @displayText
+                                </option>
                             }
                         }
                     </select>
                     <div class="param-description">
-                        Choose from available local models. Larger models provide better quality but are slower.
+                        Choose from available local models, ordered by size (smallest first). Larger models provide better quality but are slower. The smallest model is automatically selected by default.
                     </div>
                     <button class="btn btn-outline-secondary btn-sm mt-2" @onclick="LoadModels" disabled="@isLoading">
                         <i class="bi bi-arrow-clockwise me-1"></i>Refresh Models
@@ -243,6 +251,7 @@
 </div>
 
 @code {
+    List<OllamaModel> modelDetails = new();
     List<string> models = new();
     string? selectedModel;
     bool isLoading = true;
@@ -302,10 +311,29 @@
         try
         {
             Logger.LogInformation("Loading local models from Ollama...");
-            models = await OllamaService.GetLocalModelsAsync();
-            Logger.LogInformation("Loaded {Count} models.", models.Count);
+            
+            // Try to get detailed model information first
+            try
+            {
+                modelDetails = await OllamaService.GetLocalModelsWithDetailsAsync();
+                models = modelDetails.Select(m => m.name).ToList();
+                Logger.LogInformation("Loaded {Count} models with details, ordered by size.", models.Count);
+            }
+            catch (Exception detailsEx)
+            {
+                Logger.LogWarning(detailsEx, "Failed to load detailed model information, falling back to simple list");
+                // Fallback to simple model list
+                models = await OllamaService.GetLocalModelsAsync();
+                modelDetails = models.Select(name => new OllamaModel { name = name, size = 0 }).ToList();
+                Logger.LogInformation("Loaded {Count} models (simple list).", models.Count);
+            }
+            
+            // Auto-select the smallest model (first in the sorted list)
             if (models.Count > 0)
+            {
                 selectedModel = models[0];
+                Logger.LogInformation("Auto-selected smallest model: {Model}", selectedModel);
+            }
         }
         catch (Exception ex)
         {

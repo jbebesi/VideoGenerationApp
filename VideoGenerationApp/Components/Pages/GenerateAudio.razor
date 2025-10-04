@@ -1,0 +1,340 @@
+@page "/generate-audio"
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@rendermode InteractiveServer
+@using VideoGenerationApp.Services
+@using VideoGenerationApp.Dto
+@inject ComfyUIAudioService ComfyUIAudioService
+@inject GenerationQueueService QueueService
+@inject OllamaOutputState OutputState
+@inject ILogger<GenerateAudio> Logger
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Generate Audio - Video Generation App</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h3 class="mb-4">
+                <i class="bi bi-music-note-beamed me-2"></i>
+                Generate Audio
+            </h3>
+        </div>
+    </div>
+
+    @if (errorMessage != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> @errorMessage
+            @if (!string.IsNullOrWhiteSpace(errorDetails))
+            {
+                <details class="mt-2">
+                    <summary>Technical Details</summary>
+                    <pre class="mb-0 mt-2" style="white-space:pre-wrap; font-size: 0.875rem;">@errorDetails</pre>
+                </details>
+            }
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Audio Configuration Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-gear me-2"></i>Audio Configuration</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="positivePrompt">
+                                Audio Description (Positive Prompt)
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe the audio you want to generate"></i>
+                            </label>
+                            <textarea id="positivePrompt" class="form-control" rows="3" @bind="workflowConfig.PositivePrompt" 
+                                placeholder="e.g., uplifting electronic dance music, energetic beat"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="negativePrompt">
+                                Avoid (Negative Prompt)
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you don't want in the audio"></i>
+                            </label>
+                            <input id="negativePrompt" type="text" class="form-control" @bind="workflowConfig.NegativePrompt" 
+                                placeholder="e.g., noise, distortion" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="audioDuration">
+                                Duration (seconds)
+                                <i class="bi bi-question-circle tooltip-icon" title="Length of the generated audio in seconds"></i>
+                            </label>
+                            <input id="audioDuration" type="number" class="form-control" step="0.1" min="1" max="120" 
+                                @bind="workflowConfig.AudioDurationSeconds" />
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="steps">
+                                Generation Steps
+                                <i class="bi bi-question-circle tooltip-icon" title="Number of denoising steps (higher = better quality, slower)"></i>
+                            </label>
+                            <input id="steps" type="number" class="form-control" min="10" max="100" 
+                                @bind="workflowConfig.Steps" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cfgScale">
+                                CFG Scale
+                                <i class="bi bi-question-circle tooltip-icon" title="How closely to follow the prompt (1-20, higher = more adherence)"></i>
+                            </label>
+                            <input id="cfgScale" type="number" class="form-control" step="0.1" min="1" max="20" 
+                                @bind="workflowConfig.CFGScale" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="seed">
+                                Seed
+                                <i class="bi bi-question-circle tooltip-icon" title="Random seed for reproducible results (-1 for random)"></i>
+                            </label>
+                            <input id="seed" type="number" class="form-control" @bind="workflowConfig.Seed" />
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-outline-secondary" @onclick="LoadFromVideoScene" 
+                        disabled="@(OutputState.ParsedOutput?.audio == null)">
+                        <i class="bi bi-arrow-down-circle me-2"></i>Load from Video Scene
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="ResetToDefaults">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
+                    </button>
+                </div>
+            </div>
+
+            <!-- ComfyUI Status and Generation -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-play-circle me-2"></i>Audio Generation</h5>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>ComfyUI Status:</label>
+                            <div class="d-flex align-items-center">
+                                <span class="badge @(isComfyUIRunning ? "bg-success" : "bg-danger") me-2">
+                                    @(isComfyUIRunning ? "Running" : "Stopped")
+                                </span>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="CheckComfyUIStatus">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="GenerateAudioAsync" 
+                        disabled="@(!isComfyUIRunning || string.IsNullOrWhiteSpace(workflowConfig.PositivePrompt))">
+                        <i class="bi bi-play-fill me-2"></i>Queue Audio Generation
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearAudio">
+                        <i class="bi bi-trash me-2"></i>Clear Audio
+                    </button>
+                    <a href="/generation-queue" class="btn btn-outline-info">
+                        <i class="bi bi-list-task me-2"></i>View Queue
+                    </a>
+                </div>
+            </div>
+
+            <!-- Video Scene Content (if available) -->
+            @if (OutputState.ParsedOutput != null)
+            {
+                <div class="parameter-section">
+                    <h5><i class="bi bi-file-text me-2"></i>Video Scene Reference</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <p><strong>Narrative:</strong> @OutputState.ParsedOutput.narrative</p>
+                            <p><strong>Mood:</strong> @OutputState.ParsedOutput.tone (@OutputState.ParsedOutput.emotion)</p>
+                            @if (OutputState.ParsedOutput.audio != null)
+                            {
+                                <p><strong>Audio Guidance:</strong> @OutputState.ParsedOutput.audio.background_music 
+                                   (@OutputState.ParsedOutput.audio.audio_mood)</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Audio Player Section -->
+        <div class="col-lg-4">
+            <div class="parameter-section">
+                <h5><i class="bi bi-volume-up me-2"></i>Generated Audio</h5>
+                
+                @if (!string.IsNullOrEmpty(currentAudioPath))
+                {
+                    <div class="form-group">
+                        <audio controls class="w-100 mb-3">
+                            <source src="@currentAudioPath" type="audio/wav">
+                            <source src="@currentAudioPath" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                        
+                        <div class="text-muted small mb-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Generated: @(OutputState.ParsedOutput?.audio_generated_at?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Unknown")
+                        </div>
+                        
+                        <a href="@currentAudioPath" download class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-download me-1"></i>Download Audio
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-music-note display-4"></i>
+                        <p class="mt-2">No audio generated yet.</p>
+                        <p class="small">Configure settings and click Generate Audio.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isComfyUIRunning = false;
+    private string? errorMessage;
+    private string? errorDetails;
+    private string currentAudioPath = "";
+    
+    // Audio workflow configuration
+    private AudioWorkflowConfig workflowConfig = new AudioWorkflowConfig();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to output state changes
+        OutputState.Changed += StateHasChanged;
+        
+        // Get current workflow configuration
+        workflowConfig = ComfyUIAudioService.GetWorkflowConfig();
+        
+        // Check ComfyUI status
+        await CheckComfyUIStatus();
+        
+        // Load current audio if available
+        if (OutputState.ParsedOutput?.audio_file_path != null)
+        {
+            currentAudioPath = OutputState.ParsedOutput.audio_file_path;
+        }
+    }
+
+    private async Task CheckComfyUIStatus()
+    {
+        try
+        {
+            isComfyUIRunning = await ComfyUIAudioService.IsComfyUIRunningAsync();
+            Logger.LogInformation("ComfyUI status check: {Status}", isComfyUIRunning ? "Running" : "Stopped");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking ComfyUI status");
+            isComfyUIRunning = false;
+        }
+        StateHasChanged();
+    }
+
+    private async Task GenerateAudioAsync()
+    {
+        if (string.IsNullOrWhiteSpace(workflowConfig.PositivePrompt))
+        {
+            errorMessage = "Please enter an audio description.";
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            errorDetails = null;
+            
+            Logger.LogInformation("Queuing audio generation: {Prompt}", workflowConfig.PositivePrompt);
+            
+            // Generate a user-friendly name from the prompt
+            var taskName = workflowConfig.PositivePrompt.Length > 50 
+                ? workflowConfig.PositivePrompt.Substring(0, 47) + "..." 
+                : workflowConfig.PositivePrompt;
+            
+            // Queue the generation (fire and forget)
+            var taskId = await QueueService.QueueGenerationAsync(taskName, workflowConfig);
+            
+            // Show success message
+            await JSRuntime.InvokeVoidAsync("alert", 
+                $"Audio generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
+            
+            Logger.LogInformation("Audio generation queued with Task ID: {TaskId}", taskId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error queuing audio generation");
+            errorMessage = $"Failed to queue audio generation: {ex.Message}";
+            errorDetails = ex.ToString();
+        }
+        
+        StateHasChanged();
+    }
+
+    private void LoadFromVideoScene()
+    {
+        if (OutputState.ParsedOutput?.audio != null)
+        {
+            var audio = OutputState.ParsedOutput.audio;
+            
+            // Build positive prompt from video scene audio information
+            var promptParts = new List<string>();
+            
+            if (!string.IsNullOrEmpty(audio.background_music))
+                promptParts.Add(audio.background_music);
+                
+            if (!string.IsNullOrEmpty(audio.audio_mood))
+                promptParts.Add(audio.audio_mood);
+                
+            if (audio.sound_effects?.Any() == true)
+                promptParts.AddRange(audio.sound_effects);
+            
+            workflowConfig.PositivePrompt = string.Join(", ", promptParts);
+            
+            // Also consider the overall tone and emotion
+            if (!string.IsNullOrEmpty(OutputState.ParsedOutput.tone))
+                workflowConfig.PositivePrompt += $", {OutputState.ParsedOutput.tone}";
+                
+            if (!string.IsNullOrEmpty(OutputState.ParsedOutput.emotion))
+                workflowConfig.PositivePrompt += $", {OutputState.ParsedOutput.emotion}";
+        }
+        
+        StateHasChanged();
+    }
+
+    private void ResetToDefaults()
+    {
+        workflowConfig = new AudioWorkflowConfig();
+        StateHasChanged();
+    }
+
+    private void ClearAudio()
+    {
+        currentAudioPath = "";
+        if (OutputState.ParsedOutput != null)
+        {
+            OutputState.ParsedOutput.audio_file_path = "";
+            OutputState.ParsedOutput.audio_generated_at = null;
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        OutputState.Changed -= StateHasChanged;
+    }
+}

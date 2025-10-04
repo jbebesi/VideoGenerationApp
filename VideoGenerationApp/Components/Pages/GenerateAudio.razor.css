@@ -1,0 +1,17 @@
+/* GenerateAudio page specific styles */
+
+.audio-section-display {
+    background-color: #f8f9fa;
+    border: 1px solid #e9ecef;
+    border-radius: 0.375rem;
+    padding: 0.75rem;
+    margin-top: 0.25rem;
+}
+
+.audio-section-display div {
+    margin-bottom: 0.5rem;
+}
+
+.audio-section-display div:last-child {
+    margin-bottom: 0;
+}
