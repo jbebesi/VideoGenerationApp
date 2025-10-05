@@ -42,7 +42,7 @@ Generate the structured output now.
             _logger = logger;
         }
 
-        public async Task<List<string>> GetLocalModelsAsync()
+        public virtual async Task<List<string>> GetLocalModelsAsync()
         {
             try
             {
@@ -72,7 +72,7 @@ Generate the structured output now.
             }
         }
 
-        public async Task<List<OllamaModel>> GetLocalModelsWithDetailsAsync()
+        public virtual async Task<List<OllamaModel>> GetLocalModelsWithDetailsAsync()
         {
             try
             {
@@ -111,7 +111,7 @@ Generate the structured output now.
             }
         }
 
-        public async Task<string> SendPromptAsync(string model, string prompt)
+        public virtual async Task<string> SendPromptAsync(string model, string prompt)
         {
             var request = new OllamaPromptRequest 
             { 
@@ -122,7 +122,7 @@ Generate the structured output now.
             return await SendPromptAsync(request);
         }
 
-        public async Task<string> SendPromptAsync(OllamaPromptRequest request)
+        public virtual async Task<string> SendPromptAsync(OllamaPromptRequest request)
         {
             try
             {

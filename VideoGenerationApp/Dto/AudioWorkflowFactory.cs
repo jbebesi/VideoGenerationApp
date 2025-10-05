@@ -1,86 +1,313 @@
+using System.Text.Json;
+
 namespace VideoGenerationApp.Dto
 {
     /// <summary>
-    /// Configuration parameters for audio generation workflow
+    /// Configuration parameters for ACE Step audio generation workflow (singing/speech)
     /// </summary>
     public class AudioWorkflowConfig
     {
-        // Checkpoint/Model settings
-        public string CheckpointName { get; set; } = "stable-audio-open-1.0.safetensors";
-        public string ClipName { get; set; } = "t5-base.safetensors"; // Updated to valid model
+        // Checkpoint/Model settings for ACE Step
+        public string CheckpointName { get; set; } = "ace_step_v1_3.5b.safetensors";
 
-        // Text prompts
-        public string PositivePrompt { get; set; } = "heaven church electronic dance music";
-        public string NegativePrompt { get; set; } = "";
+        // ACE Step specific prompts
+        public string Tags { get; set; } = "pop, female voice, catchy melody";
+        public string Lyrics { get; set; } = "[verse]\nIn the silence of the night\nStars are shining bright\n[chorus]\nSing with me tonight\nEverything will be alright";
+        public float LyricsStrength { get; set; } = 0.99f;
 
         // Audio settings
-        public float AudioDurationSeconds { get; set; } = 47.6f;
+        public float AudioDurationSeconds { get; set; } = 120f; // Longer duration for songs
         public int BatchSize { get; set; } = 1;
+
+        // Model configuration
+        public float ModelShift { get; set; } = 5.0f; // SD3 sampling shift
+        public float TonemapMultiplier { get; set; } = 1.0f; // Reinhard tonemap multiplier
 
         // Sampling settings
         public long Seed { get; set; } = -1; // -1 for random
         public int Steps { get; set; } = 50;
-        public float CFGScale { get; set; } = 4.98f;
-        public string SamplerName { get; set; } = "dpmpp_3m_sde_gpu";
-        public string Scheduler { get; set; } = "exponential";
+        public float CFGScale { get; set; } = 5.0f;
+        public string SamplerName { get; set; } = "euler";
+        public string Scheduler { get; set; } = "simple";
         public float Denoise { get; set; } = 1.0f;
 
         // Output settings
-        public string FilenamePrefix { get; set; } = "ComfyUI";
+        public string OutputFilename { get; set; } = "audio/ComfyUI";
+        public string OutputFormat { get; set; } = "mp3"; // mp3, flac, opus
+        public string AudioQuality { get; set; } = "V0"; // For MP3: V0, V1, V2, etc. For Opus: 128k, 256k, etc.
     }
 
     /// <summary>
-    /// Factory class to create ComfyUI audio workflow from configuration
+    /// Factory class to create ComfyUI ACE Step audio workflow from configuration
     /// </summary>
     public static class AudioWorkflowFactory
     {
         public static ComfyUIAudioWorkflow CreateWorkflow(AudioWorkflowConfig config)
         {
-            var workflow = new ComfyUIAudioWorkflow();
-
-            // Add KSampler node (id: 3)
-            workflow.nodes.Add(CreateKSamplerNode(config));
-
-            // Add CheckpointLoaderSimple node (id: 4)
-            workflow.nodes.Add(CreateCheckpointLoaderNode(config));
-
-            // Add CLIPLoader node (id: 5)
-            workflow.nodes.Add(CreateClipLoaderNode(config));
-
-            // Add Positive CLIPTextEncode node (id: 6)
-            workflow.nodes.Add(CreatePositiveTextEncodeNode(config));
-
-            // Add Negative CLIPTextEncode node (id: 7)
-            workflow.nodes.Add(CreateNegativeTextEncodeNode(config));
-
-            // Add EmptyLatentAudio node (id: 11)
-            workflow.nodes.Add(CreateEmptyLatentAudioNode(config));
-
-            // Add VAEDecodeAudio node (id: 12)
-            workflow.nodes.Add(CreateVAEDecodeAudioNode());
-
-            // Add SaveAudio node (id: 13)
-            workflow.nodes.Add(CreateSaveAudioNode(config));
+            var workflow = new ComfyUIAudioWorkflow
+            {
+                id = Guid.NewGuid().ToString(),
+                revision = 0,
+                last_node_id = 73,
+                last_link_id = 137,
+                nodes = new List<ComfyUINode>
+                {
+                    CreateCheckpointLoaderNode(config),
+                    CreateEmptyAceStepLatentAudioNode(config),
+                    CreateTextEncodeAceStepAudioNode(config),
+                    CreateConditioningZeroOutNode(),
+                    CreateLatentOperationTonemapReinhardNode(config),
+                    CreateModelSamplingSD3Node(config),
+                    CreateLatentApplyOperationCFGNode(),
+                    CreateKSamplerNode(config),
+                    CreateVAEDecodeAudioNode(),
+                    CreateSaveAudioNode(config)
+                },
+                links = new List<object[]>
+                {
+                    new object[] { 80, 40, 1, 14, 0, "CLIP" },
+                    new object[] { 83, 40, 2, 18, 1, "VAE" },
+                    new object[] { 108, 14, 0, 44, 0, "CONDITIONING" },
+                    new object[] { 113, 51, 0, 49, 0, "MODEL" },
+                    new object[] { 114, 50, 0, 49, 1, "LATENT_OPERATION" },
+                    new object[] { 115, 40, 0, 51, 0, "MODEL" },
+                    new object[] { 117, 14, 0, 52, 1, "CONDITIONING" },
+                    new object[] { 119, 17, 0, 52, 3, "LATENT" },
+                    new object[] { 120, 44, 0, 52, 2, "CONDITIONING" },
+                    new object[] { 121, 49, 0, 52, 0, "MODEL" },
+                    new object[] { 122, 52, 0, 18, 0, "LATENT" },
+                    new object[] { 126, 18, 0, 59, 0, "AUDIO" }
+                },
+                extra = new Dictionary<string, object>(),
+                version = "0.4"
+            };
 
             return workflow;
+        }
+
+        private static ComfyUINode CreateCheckpointLoaderNode(AudioWorkflowConfig config)
+        {
+            return new ComfyUINode
+            {
+                id = 40,
+                type = "CheckpointLoaderSimple",
+                pos = new[] { 180, -160 },
+                size = new[] { 370, 98 },
+                order = 1,
+                mode = 0,
+                inputs = new List<ComfyUIInput>
+                {
+                    new() { name = "ckpt_name", type = "COMBO", widget = new ComfyUIWidget { name = "ckpt_name" } }
+                },
+                outputs = new List<ComfyUIOutput>
+                {
+                    new() { name = "MODEL", type = "MODEL", links = new List<int> { 115 } },
+                    new() { name = "CLIP", type = "CLIP", links = new List<int> { 80 } },
+                    new() { name = "VAE", type = "VAE", links = new List<int> { 83 } }
+                },
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "CheckpointLoaderSimple" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.32" }
+                },
+                widgets_values = new object[] { config.CheckpointName },
+                color = "#322",
+                bgcolor = "#533"
+            };
+        }
+
+        private static ComfyUINode CreateEmptyAceStepLatentAudioNode(AudioWorkflowConfig config)
+        {
+            return new ComfyUINode
+            {
+                id = 17,
+                type = "EmptyAceStepLatentAudio",
+                pos = new[] { 180, 50 },
+                size = new[] { 370, 82 },
+                order = 5,
+                mode = 0,
+                inputs = new List<ComfyUIInput>
+                {
+                    new() { name = "seconds", type = "FLOAT", widget = new ComfyUIWidget { name = "seconds" } },
+                    new() { name = "batch_size", type = "INT", widget = new ComfyUIWidget { name = "batch_size" } }
+                },
+                outputs = new List<ComfyUIOutput>
+                {
+                    new() { name = "LATENT", type = "LATENT", links = new List<int> { 119 } }
+                },
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "EmptyAceStepLatentAudio" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.32" }
+                },
+                widgets_values = new object[] { config.AudioDurationSeconds, config.BatchSize }
+            };
+        }
+
+        private static ComfyUINode CreateTextEncodeAceStepAudioNode(AudioWorkflowConfig config)
+        {
+            return new ComfyUINode
+            {
+                id = 14,
+                type = "TextEncodeAceStepAudio",
+                pos = new[] { 590, 120 },
+                size = new[] { 340, 500 },
+                order = 7,
+                mode = 0,
+                inputs = new List<ComfyUIInput>
+                {
+                    new() { name = "clip", type = "CLIP", link = 80 },
+                    new() { name = "tags", type = "STRING", widget = new ComfyUIWidget { name = "tags" } },
+                    new() { name = "lyrics", type = "STRING", widget = new ComfyUIWidget { name = "lyrics" } },
+                    new() { name = "lyrics_strength", type = "FLOAT", widget = new ComfyUIWidget { name = "lyrics_strength" } }
+                },
+                outputs = new List<ComfyUIOutput>
+                {
+                    new() { name = "CONDITIONING", type = "CONDITIONING", links = new List<int> { 108, 117 } }
+                },
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "TextEncodeAceStepAudio" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.32" }
+                },
+                widgets_values = new object[] { config.Tags, config.Lyrics, config.LyricsStrength }
+            };
+        }
+
+        private static ComfyUINode CreateConditioningZeroOutNode()
+        {
+            return new ComfyUINode
+            {
+                id = 44,
+                type = "ConditioningZeroOut",
+                pos = new[] { 600, 70 },
+                size = new[] { 197, 26 },
+                flags = new Dictionary<string, object> { { "collapsed", true } },
+                order = 10,
+                mode = 0,
+                inputs = new List<ComfyUIInput>
+                {
+                    new() { name = "conditioning", type = "CONDITIONING", link = 108 }
+                },
+                outputs = new List<ComfyUIOutput>
+                {
+                    new() { name = "CONDITIONING", type = "CONDITIONING", links = new List<int> { 120 } }
+                },
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "ConditioningZeroOut" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.32" }
+                },
+                widgets_values = new object[] { }
+            };
+        }
+
+        private static ComfyUINode CreateLatentOperationTonemapReinhardNode(AudioWorkflowConfig config)
+        {
+            return new ComfyUINode
+            {
+                id = 50,
+                type = "LatentOperationTonemapReinhard",
+                pos = new[] { 590, -160 },
+                size = new[] { 330, 58 },
+                order = 4,
+                mode = 0,
+                inputs = new List<ComfyUIInput>
+                {
+                    new() { name = "multiplier", type = "FLOAT", widget = new ComfyUIWidget { name = "multiplier" } }
+                },
+                outputs = new List<ComfyUIOutput>
+                {
+                    new() { name = "LATENT_OPERATION", type = "LATENT_OPERATION", links = new List<int> { 114 } }
+                },
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "LatentOperationTonemapReinhard" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.34" }
+                },
+                widgets_values = new object[] { config.TonemapMultiplier }
+            };
+        }
+
+        private static ComfyUINode CreateModelSamplingSD3Node(AudioWorkflowConfig config)
+        {
+            return new ComfyUINode
+            {
+                id = 51,
+                type = "ModelSamplingSD3",
+                pos = new[] { 590, -40 },
+                size = new[] { 330, 60 },
+                order = 6,
+                mode = 0,
+                inputs = new List<ComfyUIInput>
+                {
+                    new() { name = "model", type = "MODEL", link = 115 },
+                    new() { name = "shift", type = "FLOAT", widget = new ComfyUIWidget { name = "shift" } }
+                },
+                outputs = new List<ComfyUIOutput>
+                {
+                    new() { name = "MODEL", type = "MODEL", links = new List<int> { 113 } }
+                },
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "ModelSamplingSD3" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.34" }
+                },
+                widgets_values = new object[] { config.ModelShift }
+            };
+        }
+
+        private static ComfyUINode CreateLatentApplyOperationCFGNode()
+        {
+            return new ComfyUINode
+            {
+                id = 49,
+                type = "LatentApplyOperationCFG",
+                pos = new[] { 940, -160 },
+                size = new[] { 290, 50 },
+                order = 9,
+                mode = 0,
+                inputs = new List<ComfyUIInput>
+                {
+                    new() { name = "model", type = "MODEL", link = 113 },
+                    new() { name = "operation", type = "LATENT_OPERATION", link = 114 }
+                },
+                outputs = new List<ComfyUIOutput>
+                {
+                    new() { name = "MODEL", type = "MODEL", links = new List<int> { 121 } }
+                },
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "LatentApplyOperationCFG" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.34" }
+                },
+                widgets_values = new object[] { }
+            };
         }
 
         private static ComfyUINode CreateKSamplerNode(AudioWorkflowConfig config)
         {
             return new ComfyUINode
             {
-                id = 3,
+                id = 52,
                 type = "KSampler",
-                pos = new[] { 864, 96 },
-                size = new[] { 315, 262 },
-                order = 6,
+                pos = new[] { 940, -40 },
+                size = new[] { 290, 262 },
+                order = 11,
                 mode = 0,
                 inputs = new List<ComfyUIInput>
                 {
-                    new() { name = "model", type = "MODEL", link = 18 },
-                    new() { name = "positive", type = "CONDITIONING", link = 4 },
-                    new() { name = "negative", type = "CONDITIONING", link = 6 },
-                    new() { name = "latent_image", type = "LATENT", link = 12 },
+                    new() { name = "model", type = "MODEL", link = 121 },
+                    new() { name = "positive", type = "CONDITIONING", link = 117 },
+                    new() { name = "negative", type = "CONDITIONING", link = 120 },
+                    new() { name = "latent_image", type = "LATENT", link = 119 },
                     new() { name = "seed", type = "INT", widget = new ComfyUIWidget { name = "seed" } },
                     new() { name = "steps", type = "INT", widget = new ComfyUIWidget { name = "steps" } },
                     new() { name = "cfg", type = "FLOAT", widget = new ComfyUIWidget { name = "cfg" } },
@@ -90,145 +317,24 @@ namespace VideoGenerationApp.Dto
                 },
                 outputs = new List<ComfyUIOutput>
                 {
-                    new() { name = "LATENT", type = "LATENT", slot_index = 0, links = new List<int> { 13 } }
+                    new() { name = "LATENT", type = "LATENT", links = new List<int> { 122 } }
                 },
-                properties = new Dictionary<string, object> { { "Node name for S&R", "KSampler" } },
-                widgets_values = new object[]
-                {
-                    config.Seed == -1 ? Random.Shared.NextInt64(0, long.MaxValue) : config.Seed, // seed
-                    "randomize", // control_after_generate
-                    config.Steps, // steps
-                    config.CFGScale, // cfg
-                    config.SamplerName, // sampler_name
-                    config.Scheduler, // scheduler
-                    config.Denoise // denoise
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "KSampler" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.34" }
+                },
+                widgets_values = new object[] 
+                { 
+                    config.Seed == -1 ? Random.Shared.NextInt64(0, long.MaxValue) : config.Seed,
+                    config.Seed == -1 ? "randomize" : "fixed",
+                    config.Steps,
+                    config.CFGScale,
+                    config.SamplerName,
+                    config.Scheduler,
+                    config.Denoise
                 }
-            };
-        }
-
-        private static ComfyUINode CreateCheckpointLoaderNode(AudioWorkflowConfig config)
-        {
-            return new ComfyUINode
-            {
-                id = 4,
-                type = "CheckpointLoaderSimple",
-                pos = new[] { 0, 240 },
-                size = new[] { 336, 98 },
-                order = 0,
-                mode = 0,
-                inputs = new List<ComfyUIInput>
-                {
-                    new() { name = "ckpt_name", type = "COMBO", widget = new ComfyUIWidget { name = "ckpt_name" } }
-                },
-                outputs = new List<ComfyUIOutput>
-                {
-                    new() { name = "MODEL", type = "MODEL", slot_index = 0, links = new List<int> { 18 } },
-                    new() { name = "CLIP", type = "CLIP", slot_index = 1, links = new List<int>() },
-                    new() { name = "VAE", type = "VAE", slot_index = 2, links = new List<int> { 14 } }
-                },
-                properties = new Dictionary<string, object> { { "Node name for S&R", "CheckpointLoaderSimple" } },
-                widgets_values = new object[] { config.CheckpointName }
-            };
-        }
-
-        private static ComfyUINode CreateClipLoaderNode(AudioWorkflowConfig config)
-        {
-            return new ComfyUINode
-            {
-                id = 5,
-                type = "CLIPLoader",
-                pos = new[] { 0, 384 },
-                size = new[] { 336, 98 },
-                order = 1,
-                mode = 0,
-                inputs = new List<ComfyUIInput>
-                {
-                    new() { name = "clip_name", type = "COMBO", widget = new ComfyUIWidget { name = "clip_name" } },
-                    new() { name = "type", type = "COMBO", widget = new ComfyUIWidget { name = "type" } },
-                    new() { name = "device", type = "COMBO", widget = new ComfyUIWidget { name = "device" } }
-                },
-                outputs = new List<ComfyUIOutput>
-                {
-                    new() { name = "CLIP", type = "CLIP", slot_index = 0, links = new List<int> { 25, 26 } }
-                },
-                properties = new Dictionary<string, object> { { "Node name for S&R", "CLIPLoader" } },
-                widgets_values = new object[] { config.ClipName, "stable_audio", "default" }
-            };
-        }
-
-        private static ComfyUINode CreatePositiveTextEncodeNode(AudioWorkflowConfig config)
-        {
-            return new ComfyUINode
-            {
-                id = 6,
-                type = "CLIPTextEncode",
-                pos = new[] { 384, 96 },
-                size = new[] { 432, 144 },
-                order = 4,
-                mode = 0,
-                inputs = new List<ComfyUIInput>
-                {
-                    new() { name = "clip", type = "CLIP", link = 25 },
-                    new() { name = "text", type = "STRING", widget = new ComfyUIWidget { name = "text" } }
-                },
-                outputs = new List<ComfyUIOutput>
-                {
-                    new() { name = "CONDITIONING", type = "CONDITIONING", slot_index = 0, links = new List<int> { 4 } }
-                },
-                properties = new Dictionary<string, object> { { "Node name for S&R", "CLIPTextEncode" } },
-                widgets_values = new object[] { config.PositivePrompt },
-                color = "#232",
-                bgcolor = "#353"
-            };
-        }
-
-        private static ComfyUINode CreateNegativeTextEncodeNode(AudioWorkflowConfig config)
-        {
-            return new ComfyUINode
-            {
-                id = 7,
-                type = "CLIPTextEncode",
-                pos = new[] { 384, 288 },
-                size = new[] { 432, 144 },
-                order = 5,
-                mode = 0,
-                inputs = new List<ComfyUIInput>
-                {
-                    new() { name = "clip", type = "CLIP", link = 26 },
-                    new() { name = "text", type = "STRING", widget = new ComfyUIWidget { name = "text" } }
-                },
-                outputs = new List<ComfyUIOutput>
-                {
-                    new() { name = "CONDITIONING", type = "CONDITIONING", slot_index = 0, links = new List<int> { 6 } }
-                },
-                properties = new Dictionary<string, object> { { "Node name for S&R", "CLIPTextEncode" } },
-                widgets_values = new object[] { config.NegativePrompt },
-                color = "#322",
-                bgcolor = "#533"
-            };
-        }
-
-        private static ComfyUINode CreateEmptyLatentAudioNode(AudioWorkflowConfig config)
-        {
-            return new ComfyUINode
-            {
-                id = 11,
-                type = "EmptyLatentAudio",
-                pos = new[] { 576, 480 },
-                size = new[] { 240, 82 },
-                order = 2,
-                mode = 0,
-                inputs = new List<ComfyUIInput>
-                {
-                    new() { name = "seconds", type = "FLOAT", widget = new ComfyUIWidget { name = "seconds" } },
-                    new() { name = "batch_size", type = "INT", widget = new ComfyUIWidget { name = "batch_size" } }
-                },
-                outputs = new List<ComfyUIOutput>
-                {
-                    new() { name = "LATENT", type = "LATENT", links = new List<int> { 12 } }
-                },
-                properties = new Dictionary<string, object> { { "Node name for S&R", "EmptyLatentAudio" } },
-                widgets_values = new object[] { config.AudioDurationSeconds, config.BatchSize }
             };
         }
 
@@ -236,23 +342,28 @@ namespace VideoGenerationApp.Dto
         {
             return new ComfyUINode
             {
-                id = 12,
+                id = 18,
                 type = "VAEDecodeAudio",
-                pos = new[] { 1200, 96 },
-                size = new[] { 210, 46 },
-                order = 7,
+                pos = new[] { 1080, 270 },
+                size = new[] { 150, 46 },
+                order = 12,
                 mode = 0,
                 inputs = new List<ComfyUIInput>
                 {
-                    new() { name = "samples", type = "LATENT", link = 13 },
-                    new() { name = "vae", type = "VAE", link = 14 }
+                    new() { name = "samples", type = "LATENT", link = 122 },
+                    new() { name = "vae", type = "VAE", link = 83 }
                 },
                 outputs = new List<ComfyUIOutput>
                 {
-                    new() { name = "AUDIO", type = "AUDIO", slot_index = 0, links = new List<int> { 15 } }
+                    new() { name = "AUDIO", type = "AUDIO", links = new List<int> { 126 } }
                 },
-                properties = new Dictionary<string, object> { { "Node name for S&R", "VAEDecodeAudio" } },
-                widgets_values = Array.Empty<object>()
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "VAEDecodeAudio" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.32" }
+                },
+                widgets_values = new object[] { }
             };
         }
 
@@ -260,21 +371,27 @@ namespace VideoGenerationApp.Dto
         {
             return new ComfyUINode
             {
-                id = 13,
-                type = "SaveAudio",
-                pos = new[] { 1440, 96 },
-                size = new[] { 355, 112 },
-                order = 8,
+                id = 59,
+                type = "SaveAudioMP3",
+                pos = new[] { 1260, -160 },
+                size = new[] { 610, 136 },
+                order = 13,
                 mode = 0,
                 inputs = new List<ComfyUIInput>
                 {
-                    new() { name = "audio", type = "AUDIO", link = 15 },
+                    new() { name = "audio", type = "AUDIO", link = 126 },
                     new() { name = "filename_prefix", type = "STRING", widget = new ComfyUIWidget { name = "filename_prefix" } },
+                    new() { name = "quality", type = "COMBO", widget = new ComfyUIWidget { name = "quality" } },
                     new() { name = "audioUI", type = "AUDIO_UI", widget = new ComfyUIWidget { name = "audioUI" } }
                 },
                 outputs = new List<ComfyUIOutput>(),
-                properties = new Dictionary<string, object> { { "Node name for S&R", "SaveAudio" } },
-                widgets_values = new object[] { config.FilenamePrefix } // Only filename_prefix as in the example
+                properties = new Dictionary<string, object> 
+                { 
+                    { "Node name for S&R", "SaveAudioMP3" },
+                    { "cnr_id", "comfy-core" },
+                    { "ver", "0.3.34" }
+                },
+                widgets_values = new object[] { config.OutputFilename, config.AudioQuality }
             };
         }
     }

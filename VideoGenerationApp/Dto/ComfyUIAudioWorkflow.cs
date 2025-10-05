@@ -9,9 +9,10 @@ namespace VideoGenerationApp.Dto
     {
         public string id { get; set; } = Guid.NewGuid().ToString();
         public int revision { get; set; } = 0;
-        public int last_node_id { get; set; } = 18;
-        public int last_link_id { get; set; } = 26;
+        public int last_node_id { get; set; } = 61;
+        public int last_link_id { get; set; } = 128;
         public List<ComfyUINode> nodes { get; set; } = new();
+        public List<object[]> links { get; set; } = new();
         public Dictionary<string, object> extra { get; set; } = new();
         public string version { get; set; } = "0.4";
     }

@@ -6,8 +6,6 @@
 @inject IJSRuntime JSRuntime
 @implements IDisposable
 
-<PageTitle>Generation Queue - Video Generation App</PageTitle>
-
 <div class="generation-queue-container">
     <div class="page-header">
         <h1>Audio Generation Queue</h1>
@@ -17,9 +15,6 @@
             </button>
             <button class="btn btn-outline-secondary" @onclick="RefreshQueue">
                 <i class="fas fa-sync-alt"></i> Refresh Now
-            </button>
-            <button class="btn btn-outline-danger" @onclick="ClearCompleted">
-                <i class="fas fa-trash"></i> Clear Completed
             </button>
         </div>
     </div>
@@ -66,16 +61,7 @@
                             <span class="task-status @GetStatusClass(task.Status)">@task.Status</span>
                         </div>
                         <div class="task-actions">
-                            @if (task.Status == GenerationStatus.Completed && !string.IsNullOrEmpty(task.GeneratedFilePath))
-                            {
-                                <button class="btn btn-sm btn-success" @onclick="() => PlayAudio(task.GeneratedFilePath)">
-                                    <i class="fas fa-play"></i> Play
-                                </button>
-                                <button class="btn btn-sm btn-outline-primary" @onclick="() => DownloadAudio(task.GeneratedFilePath, task.Name)">
-                                    <i class="fas fa-download"></i> Download
-                                </button>
-                            }
-                            @if (task.Status == GenerationStatus.Pending || task.Status == GenerationStatus.Queued)
+                            @if (task.Status == GenerationStatus.Pending || task.Status == GenerationStatus.Queued || task.Status == GenerationStatus.Processing)
                             {
                                 <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelTask(task.Id)">
                                     <i class="fas fa-times"></i> Cancel
@@ -257,18 +243,6 @@
         });
     }
 
-    private async Task ClearCompleted()
-    {
-        var cleared = QueueService.ClearCompletedTasks();
-        RefreshTasks();
-        StateHasChanged();
-        
-        if (cleared > 0)
-        {
-            await JSRuntime.InvokeVoidAsync("alert", $"Cleared {cleared} completed tasks");
-        }
-    }
-
     private void ShowQueueDialog()
     {
         _newTaskName = "";
@@ -299,7 +273,7 @@
         {
             var config = new AudioWorkflowConfig
             {
-                PositivePrompt = _newTaskPrompt,
+                Tags = _newTaskPrompt,
                 AudioDurationSeconds = _newTaskDuration
             };
 
@@ -322,27 +296,10 @@
     {
         if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this task?"))
         {
-            QueueService.CancelTask(taskId);
-            RefreshTasks();
+            await QueueService.CancelTaskAsync(taskId);
+            await RefreshTasksAsync();
             StateHasChanged();
         }
-    }
-
-    private async Task PlayAudio(string filePath)
-    {
-        await JSRuntime.InvokeVoidAsync("eval", $"new Audio('{filePath}').play()");
-    }
-
-    private async Task DownloadAudio(string filePath, string fileName)
-    {
-        await JSRuntime.InvokeVoidAsync("eval", $@"
-            const link = document.createElement('a');
-            link.href = '{filePath}';
-            link.download = '{fileName}.wav';
-            document.body.appendChild(link);
-            link.click();
-            document.body.removeChild(link);
-        ");
     }
 
     private string GetStatusClass(GenerationStatus status)

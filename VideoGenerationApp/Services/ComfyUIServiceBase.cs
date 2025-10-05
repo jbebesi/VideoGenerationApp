@@ -27,10 +27,18 @@ namespace VideoGenerationApp.Services
             _httpClient = httpClient;
             _logger = logger;
             _environment = environment;
-            _settings = settings.Value;
+            _settings = settings?.Value ?? new ComfyUISettings 
+            {
+                ApiUrl = "http://localhost:8188",
+                TimeoutMinutes = 10,
+                PollIntervalSeconds = 2
+            };
             
             // Configure HttpClient for ComfyUI
-            _httpClient.BaseAddress = new Uri(_settings.ApiUrl);
+            if (!string.IsNullOrEmpty(_settings.ApiUrl))
+            {
+                _httpClient.BaseAddress = new Uri(_settings.ApiUrl);
+            }
             _httpClient.Timeout = TimeSpan.FromMinutes(_settings.TimeoutMinutes);
         }
 
@@ -406,6 +414,47 @@ namespace VideoGenerationApp.Services
             {
                 _logger.LogError(ex, "Error downloading audio file for prompt {PromptId}", promptId);
                 return null;
+            }
+        }
+
+        /// <summary>
+        /// Cancels/interrupts a running job in ComfyUI
+        /// </summary>
+        public virtual async Task<bool> CancelJobAsync(string promptId)
+        {
+            try
+            {
+                _logger.LogInformation("Attempting to cancel ComfyUI job with prompt ID: {PromptId}", promptId);
+                
+                // First try to delete from queue if it's still queued
+                var deletePayload = new { delete = new[] { promptId } };
+                var deleteJson = JsonSerializer.Serialize(deletePayload);
+                var deleteResponse = await _httpClient.PostAsync("/queue", 
+                    new StringContent(deleteJson, Encoding.UTF8, "application/json"));
+                
+                if (deleteResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Successfully deleted queued job {PromptId} from ComfyUI queue", promptId);
+                    return true;
+                }
+                
+                // If deletion didn't work, try to interrupt the execution
+                var interruptResponse = await _httpClient.PostAsync("/interrupt", new StringContent(""));
+                
+                if (interruptResponse.IsSuccessStatusCode)
+                {
+                    _logger.LogInformation("Successfully interrupted ComfyUI execution (this may affect the currently running job)");
+                    return true;
+                }
+                
+                _logger.LogWarning("Failed to cancel job {PromptId}. Delete status: {DeleteStatus}, Interrupt status: {InterruptStatus}", 
+                    promptId, deleteResponse.StatusCode, interruptResponse.StatusCode);
+                return false;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error canceling ComfyUI job {PromptId}", promptId);
+                return false;
             }
         }
 

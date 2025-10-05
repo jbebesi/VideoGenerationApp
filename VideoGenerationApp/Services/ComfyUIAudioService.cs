@@ -87,10 +87,10 @@ namespace VideoGenerationApp.Services
                     return null;
                 }
 
-                // Update prompts from scene output
+                // Update tags and lyrics from scene output
                 UpdatePromptsFromScene(sceneOutput);
-                _logger.LogInformation("Updated prompts - Positive: '{PositivePrompt}', Negative: '{NegativePrompt}'", 
-                    _workflowConfig.PositivePrompt, _workflowConfig.NegativePrompt);
+                _logger.LogInformation("Updated ACE Step config - Tags: '{Tags}', Lyrics: '{Lyrics}'", 
+                    _workflowConfig.Tags, _workflowConfig.Lyrics?.Substring(0, Math.Min(50, _workflowConfig.Lyrics?.Length ?? 0)));
                 
                 // Create workflow
                 var workflow = AudioWorkflowFactory.CreateWorkflow(_workflowConfig);
@@ -120,7 +120,7 @@ namespace VideoGenerationApp.Services
                 }
 
                 // Get generated audio file
-                return await GetGeneratedFileAsync(promptId, "audio", _workflowConfig.FilenamePrefix);
+                return await GetGeneratedFileAsync(promptId, "audio", _workflowConfig.OutputFilename);
             }
             catch (Exception ex)
             {
@@ -162,41 +162,43 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Updates prompts in the workflow config based on scene output
+        /// Updates ACE Step configuration from scene output
         /// </summary>
         private void UpdatePromptsFromScene(VideoSceneOutput sceneOutput)
         {
-            var promptParts = new List<string>();
+            var tagParts = new List<string>();
+
+            // Add emotional context and tone
+            if (!string.IsNullOrEmpty(sceneOutput.tone))
+                tagParts.Add(sceneOutput.tone);
+            if (!string.IsNullOrEmpty(sceneOutput.emotion))
+                tagParts.Add(sceneOutput.emotion);
 
             // Add audio-specific information from scene
             if (sceneOutput.audio != null)
             {
                 if (!string.IsNullOrEmpty(sceneOutput.audio.background_music))
-                    promptParts.Add(sceneOutput.audio.background_music);
+                    tagParts.Add(sceneOutput.audio.background_music);
 
                 if (!string.IsNullOrEmpty(sceneOutput.audio.audio_mood))
-                    promptParts.Add(sceneOutput.audio.audio_mood);
-
-                if (sceneOutput.audio.sound_effects?.Any() == true)
-                    promptParts.Add(string.Join(" ", sceneOutput.audio.sound_effects));
+                    tagParts.Add(sceneOutput.audio.audio_mood);
             }
 
-            // Add narrative context if no specific audio instructions
-            if (promptParts.Count == 0)
+            // Update tags if we have any content
+            if (tagParts.Count > 0)
             {
-                if (!string.IsNullOrEmpty(sceneOutput.tone))
-                    promptParts.Add(sceneOutput.tone);
-                if (!string.IsNullOrEmpty(sceneOutput.emotion))
-                    promptParts.Add(sceneOutput.emotion);
-                promptParts.Add("music");
+                _workflowConfig.Tags = string.Join(", ", tagParts);
             }
 
-            _workflowConfig.PositivePrompt = string.Join(" ", promptParts);
-            
-            // Ensure negative prompt is not empty (ComfyUI requires text input for CLIPTextEncode)
-            if (string.IsNullOrEmpty(_workflowConfig.NegativePrompt))
+            // Create basic lyrics from narrative if available
+            if (!string.IsNullOrEmpty(sceneOutput.narrative))
             {
-                _workflowConfig.NegativePrompt = "bad quality, distorted, noise";
+                var narrative = sceneOutput.narrative;
+                var truncatedNarrative = narrative.Length > 100 
+                    ? narrative.Substring(0, 100) + "..." 
+                    : narrative;
+                
+                _workflowConfig.Lyrics = $"[verse]\n{truncatedNarrative}\n[chorus]\nSing with me tonight\nEverything will be alright";
             }
         }
 
@@ -279,6 +281,50 @@ namespace VideoGenerationApp.Services
                             inputs["batch_size"] = node.widgets_values[1];
                         }
                         break;
+
+                    case "EmptyAceStepLatentAudio":
+                        // EmptyAceStepLatentAudio widgets: [seconds, batch_size]
+                        if (node.widgets_values.Length >= 2)
+                        {
+                            inputs["seconds"] = node.widgets_values[0];
+                            inputs["batch_size"] = node.widgets_values[1];
+                        }
+                        break;
+
+                    case "TextEncodeAceStepAudio":
+                        // TextEncodeAceStepAudio widgets: [tags, lyrics, lyrics_strength]
+                        if (node.widgets_values.Length >= 3)
+                        {
+                            inputs["tags"] = node.widgets_values[0];
+                            inputs["lyrics"] = node.widgets_values[1];
+                            inputs["lyrics_strength"] = node.widgets_values[2];
+                        }
+                        break;
+
+                    case "ModelSamplingSD3":
+                        // ModelSamplingSD3 widgets: [shift]
+                        if (node.widgets_values.Length >= 1)
+                        {
+                            inputs["shift"] = node.widgets_values[0];
+                        }
+                        break;
+
+                    case "LatentOperationTonemapReinhard":
+                        // LatentOperationTonemapReinhard widgets: [multiplier]
+                        if (node.widgets_values.Length >= 1)
+                        {
+                            inputs["multiplier"] = node.widgets_values[0];
+                        }
+                        break;
+
+                    case "SaveAudioMP3":
+                        // SaveAudioMP3 widgets: [filename_prefix, quality]
+                        if (node.widgets_values.Length >= 2)
+                        {
+                            inputs["filename_prefix"] = node.widgets_values[0];
+                            inputs["quality"] = node.widgets_values[1];
+                        }
+                        break;
                     
                     case "SaveAudio":
                         // SaveAudio widgets: [filename_prefix]
@@ -317,25 +363,42 @@ namespace VideoGenerationApp.Services
                     _workflowConfig.Denoise = denoise;
             }
 
-            var positiveTextNode = workflow.nodes.FirstOrDefault(n => n.type == "CLIPTextEncode" && n.id == 6);
-            if (positiveTextNode?.widgets_values?.Length > 0 && positiveTextNode.widgets_values[0] is string positivePrompt)
+            // Extract ACE Step text encoding parameters
+            var aceStepTextNode = workflow.nodes.FirstOrDefault(n => n.type == "TextEncodeAceStepAudio");
+            if (aceStepTextNode?.widgets_values?.Length >= 3)
             {
-                _workflowConfig.PositivePrompt = positivePrompt;
+                if (aceStepTextNode.widgets_values[0] is string tags)
+                    _workflowConfig.Tags = tags;
+                if (aceStepTextNode.widgets_values[1] is string lyrics)
+                    _workflowConfig.Lyrics = lyrics;
+                if (float.TryParse(aceStepTextNode.widgets_values[2]?.ToString(), out float lyricsStrength))
+                    _workflowConfig.LyricsStrength = lyricsStrength;
             }
 
-            var negativeTextNode = workflow.nodes.FirstOrDefault(n => n.type == "CLIPTextEncode" && n.id == 7);
-            if (negativeTextNode?.widgets_values?.Length > 0 && negativeTextNode.widgets_values[0] is string negativePrompt)
+            // Extract ACE Step latent audio parameters
+            var aceStepLatentNode = workflow.nodes.FirstOrDefault(n => n.type == "EmptyAceStepLatentAudio");
+            if (aceStepLatentNode?.widgets_values?.Length >= 2)
             {
-                _workflowConfig.NegativePrompt = negativePrompt;
-            }
-
-            var audioLatentNode = workflow.nodes.FirstOrDefault(n => n.type == "EmptyLatentAudio");
-            if (audioLatentNode?.widgets_values?.Length >= 2)
-            {
-                if (float.TryParse(audioLatentNode.widgets_values[0]?.ToString(), out float duration))
+                if (float.TryParse(aceStepLatentNode.widgets_values[0]?.ToString(), out float duration))
                     _workflowConfig.AudioDurationSeconds = duration;
-                if (int.TryParse(audioLatentNode.widgets_values[1]?.ToString(), out int batchSize))
+                if (int.TryParse(aceStepLatentNode.widgets_values[1]?.ToString(), out int batchSize))
                     _workflowConfig.BatchSize = batchSize;
+            }
+
+            // Extract model shift parameter
+            var modelSamplingNode = workflow.nodes.FirstOrDefault(n => n.type == "ModelSamplingSD3");
+            if (modelSamplingNode?.widgets_values?.Length > 0)
+            {
+                if (float.TryParse(modelSamplingNode.widgets_values[0]?.ToString(), out float modelShift))
+                    _workflowConfig.ModelShift = modelShift;
+            }
+
+            // Extract tonemap multiplier
+            var tonemapNode = workflow.nodes.FirstOrDefault(n => n.type == "LatentOperationTonemapReinhard");
+            if (tonemapNode?.widgets_values?.Length > 0)
+            {
+                if (float.TryParse(tonemapNode.widgets_values[0]?.ToString(), out float tonemapMultiplier))
+                    _workflowConfig.TonemapMultiplier = tonemapMultiplier;
             }
         }
     }

@@ -56,12 +56,12 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Adds a new generation task to the queue
         /// </summary>
-        public async Task<string> QueueGenerationAsync(string name, AudioWorkflowConfig config, string? notes = null)
+        public virtual async Task<string> QueueGenerationAsync(string name, AudioWorkflowConfig config, string? notes = null)
         {
             var task = new GenerationTask
             {
                 Name = name,
-                PositivePrompt = config.PositivePrompt,
+                PositivePrompt = $"{config.Tags} - {config.Lyrics?.Substring(0, Math.Min(50, config.Lyrics?.Length ?? 0))}",
                 Config = config,
                 Notes = notes,
                 Status = GenerationStatus.Pending
@@ -80,7 +80,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets all generation tasks
         /// </summary>
-        public IEnumerable<GenerationTask> GetAllTasks()
+        public virtual IEnumerable<GenerationTask> GetAllTasks()
         {
             return _tasks.Values.OrderByDescending(t => t.CreatedAt);
         }
@@ -88,7 +88,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets all generation tasks asynchronously
         /// </summary>
-        public async Task<IEnumerable<GenerationTask>> GetAllTasksAsync()
+        public virtual async Task<IEnumerable<GenerationTask>> GetAllTasksAsync()
         {
             return await Task.FromResult(_tasks.Values.OrderByDescending(t => t.CreatedAt));
         }
@@ -96,7 +96,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets a specific task by ID
         /// </summary>
-        public GenerationTask? GetTask(string taskId)
+        public virtual GenerationTask? GetTask(string taskId)
         {
             _tasks.TryGetValue(taskId, out var task);
             return task;
@@ -105,12 +105,37 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Cancels a pending or queued task
         /// </summary>
-        public bool CancelTask(string taskId)
+        public virtual async Task<bool> CancelTaskAsync(string taskId)
         {
             if (_tasks.TryGetValue(taskId, out var task))
             {
-                if (task.Status == GenerationStatus.Pending || task.Status == GenerationStatus.Queued)
+                if (task.Status == GenerationStatus.Pending || task.Status == GenerationStatus.Queued || task.Status == GenerationStatus.Processing)
                 {
+                    // If task has a prompt ID, try to cancel it in ComfyUI
+                    if (!string.IsNullOrEmpty(task.PromptId))
+                    {
+                        try
+                        {
+                            using var scope = _serviceScopeFactory.CreateScope();
+                            var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
+                            
+                            var cancelled = await audioService.CancelJobAsync(task.PromptId);
+                            if (cancelled)
+                            {
+                                _logger.LogInformation("Successfully cancelled ComfyUI job {PromptId} for task {TaskId}", task.PromptId, task.Id);
+                            }
+                            else
+                            {
+                                _logger.LogWarning("Failed to cancel ComfyUI job {PromptId} for task {TaskId}, but will mark task as cancelled locally", task.PromptId, task.Id);
+                            }
+                        }
+                        catch (Exception ex)
+                        {
+                            _logger.LogError(ex, "Error cancelling ComfyUI job {PromptId} for task {TaskId}, but will mark task as cancelled locally", task.PromptId, task.Id);
+                        }
+                    }
+                    
+                    // Update local task status regardless of ComfyUI cancellation success
                     task.Status = GenerationStatus.Cancelled;
                     task.CompletedAt = DateTime.UtcNow;
                     task.ErrorMessage = "Cancelled by user";
@@ -124,9 +149,17 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
+        /// Cancels a pending or queued task (synchronous version for backward compatibility)
+        /// </summary>
+        public virtual bool CancelTask(string taskId)
+        {
+            return CancelTaskAsync(taskId).GetAwaiter().GetResult();
+        }
+        
+        /// <summary>
         /// Removes completed, failed, or cancelled tasks
         /// </summary>
-        public int ClearCompletedTasks()
+        public virtual int ClearCompletedTasks()
         {
             var completedTaskIds = _tasks.Values
                 .Where(t => t.Status == GenerationStatus.Completed || 

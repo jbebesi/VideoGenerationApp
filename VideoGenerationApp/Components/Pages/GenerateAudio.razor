@@ -41,26 +41,35 @@
         <div class="col-lg-8">
             <!-- Audio Configuration Section -->
             <div class="parameter-section">
-                <h5><i class="bi bi-gear me-2"></i>Audio Configuration</h5>
+                <h5><i class="bi bi-music-note-beamed me-2"></i>ACE Step Audio Configuration</h5>
                 
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="positivePrompt">
-                                Audio Description (Positive Prompt)
-                                <i class="bi bi-question-circle tooltip-icon" title="Describe the audio you want to generate"></i>
+                            <label for="tags">
+                                Tags (Genre, Voice, Style)
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe the musical style, genre, voice type, etc."></i>
                             </label>
-                            <textarea id="positivePrompt" class="form-control" rows="3" @bind="workflowConfig.PositivePrompt" 
-                                placeholder="e.g., uplifting electronic dance music, energetic beat"></textarea>
+                            <textarea id="tags" class="form-control" rows="2" @bind="workflowConfig.Tags" 
+                                placeholder="e.g., pop, female voice, catchy melody, upbeat"></textarea>
                         </div>
                         
                         <div class="form-group">
-                            <label for="negativePrompt">
-                                Avoid (Negative Prompt)
-                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you don't want in the audio"></i>
+                            <label for="lyrics">
+                                Lyrics
+                                <i class="bi bi-question-circle tooltip-icon" title="Enter the lyrics for the song. Use [verse], [chorus], [bridge] tags to structure"></i>
                             </label>
-                            <input id="negativePrompt" type="text" class="form-control" @bind="workflowConfig.NegativePrompt" 
-                                placeholder="e.g., noise, distortion" />
+                            <textarea id="lyrics" class="form-control" rows="6" @bind="workflowConfig.Lyrics" 
+                                placeholder="[verse]&#10;In the silence of the night&#10;Stars are shining bright&#10;[chorus]&#10;Sing with me tonight&#10;Everything will be alright"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="lyricsStrength">
+                                Lyrics Strength
+                                <i class="bi bi-question-circle tooltip-icon" title="How strictly to follow the lyrics (0.0-1.0)"></i>
+                            </label>
+                            <input id="lyricsStrength" type="number" class="form-control" step="0.01" min="0" max="1" 
+                                @bind="workflowConfig.LyricsStrength" />
                         </div>
                         
                         <div class="form-group">
@@ -68,7 +77,7 @@
                                 Duration (seconds)
                                 <i class="bi bi-question-circle tooltip-icon" title="Length of the generated audio in seconds"></i>
                             </label>
-                            <input id="audioDuration" type="number" class="form-control" step="0.1" min="1" max="120" 
+                            <input id="audioDuration" type="number" class="form-control" step="1" min="30" max="300" 
                                 @bind="workflowConfig.AudioDurationSeconds" />
                         </div>
                     </div>
@@ -79,7 +88,7 @@
                                 Generation Steps
                                 <i class="bi bi-question-circle tooltip-icon" title="Number of denoising steps (higher = better quality, slower)"></i>
                             </label>
-                            <input id="steps" type="number" class="form-control" min="10" max="100" 
+                            <input id="steps" type="number" class="form-control" min="20" max="100" 
                                 @bind="workflowConfig.Steps" />
                         </div>
                         
@@ -90,6 +99,24 @@
                             </label>
                             <input id="cfgScale" type="number" class="form-control" step="0.1" min="1" max="20" 
                                 @bind="workflowConfig.CFGScale" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modelShift">
+                                Model Shift
+                                <i class="bi bi-question-circle tooltip-icon" title="SD3 sampling shift parameter (1-10)"></i>
+                            </label>
+                            <input id="modelShift" type="number" class="form-control" step="0.1" min="1" max="10" 
+                                @bind="workflowConfig.ModelShift" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="tonemapMultiplier">
+                                Tonemap Multiplier
+                                <i class="bi bi-question-circle tooltip-icon" title="Audio dynamics control (0.1-2.0)"></i>
+                            </label>
+                            <input id="tonemapMultiplier" type="number" class="form-control" step="0.1" min="0.1" max="2" 
+                                @bind="workflowConfig.TonemapMultiplier" />
                         </div>
                         
                         <div class="form-group">
@@ -135,7 +162,7 @@
                 
                 <div class="d-flex gap-2">
                     <button class="btn btn-primary" @onclick="GenerateAudioAsync" 
-                        disabled="@(!isComfyUIRunning || string.IsNullOrWhiteSpace(workflowConfig.PositivePrompt))">
+                        disabled="@(!isComfyUIRunning || string.IsNullOrWhiteSpace(workflowConfig.Tags))">
                         <i class="bi bi-play-fill me-2"></i>Queue Audio Generation
                     </button>
                     <button class="btn btn-outline-secondary" @onclick="ClearAudio">
@@ -248,9 +275,9 @@
 
     private async Task GenerateAudioAsync()
     {
-        if (string.IsNullOrWhiteSpace(workflowConfig.PositivePrompt))
+        if (string.IsNullOrWhiteSpace(workflowConfig.Tags))
         {
-            errorMessage = "Please enter an audio description.";
+            errorMessage = "Please enter tags for the audio style.";
             return;
         }
 
@@ -259,25 +286,29 @@
             errorMessage = null;
             errorDetails = null;
             
-            Logger.LogInformation("Queuing audio generation: {Prompt}", workflowConfig.PositivePrompt);
+            Logger.LogInformation("Queuing ACE Step audio generation: Tags={Tags}, Lyrics={Lyrics}", 
+                workflowConfig.Tags, workflowConfig.Lyrics?.Substring(0, Math.Min(50, workflowConfig.Lyrics?.Length ?? 0)));
             
-            // Generate a user-friendly name from the prompt
-            var taskName = workflowConfig.PositivePrompt.Length > 50 
-                ? workflowConfig.PositivePrompt.Substring(0, 47) + "..." 
-                : workflowConfig.PositivePrompt;
+            // Generate a user-friendly name from the tags and lyrics
+            var taskName = !string.IsNullOrWhiteSpace(workflowConfig.Lyrics) && workflowConfig.Lyrics.Length > 10
+                ? $"{workflowConfig.Tags} - {workflowConfig.Lyrics.Substring(0, Math.Min(30, workflowConfig.Lyrics.Length))}..."
+                : workflowConfig.Tags;
+            
+            if (taskName.Length > 80)
+                taskName = taskName.Substring(0, 77) + "...";
             
             // Queue the generation (fire and forget)
             var taskId = await QueueService.QueueGenerationAsync(taskName, workflowConfig);
             
             // Show success message
             await JSRuntime.InvokeVoidAsync("alert", 
-                $"Audio generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
+                $"ACE Step audio generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
             
-            Logger.LogInformation("Audio generation queued with Task ID: {TaskId}", taskId);
+            Logger.LogInformation("ACE Step audio generation queued with Task ID: {TaskId}", taskId);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error queuing audio generation");
+            Logger.LogError(ex, "Error queuing ACE Step audio generation");
             errorMessage = $"Failed to queue audio generation: {ex.Message}";
             errorDetails = ex.ToString();
         }
@@ -291,26 +322,30 @@
         {
             var audio = OutputState.ParsedOutput.audio;
             
-            // Build positive prompt from video scene audio information
-            var promptParts = new List<string>();
+            // Build tags from video scene audio information
+            var tagParts = new List<string>();
             
             if (!string.IsNullOrEmpty(audio.background_music))
-                promptParts.Add(audio.background_music);
+                tagParts.Add(audio.background_music);
                 
             if (!string.IsNullOrEmpty(audio.audio_mood))
-                promptParts.Add(audio.audio_mood);
-                
-            if (audio.sound_effects?.Any() == true)
-                promptParts.AddRange(audio.sound_effects);
-            
-            workflowConfig.PositivePrompt = string.Join(", ", promptParts);
+                tagParts.Add(audio.audio_mood);
             
             // Also consider the overall tone and emotion
             if (!string.IsNullOrEmpty(OutputState.ParsedOutput.tone))
-                workflowConfig.PositivePrompt += $", {OutputState.ParsedOutput.tone}";
+                tagParts.Add(OutputState.ParsedOutput.tone);
                 
             if (!string.IsNullOrEmpty(OutputState.ParsedOutput.emotion))
-                workflowConfig.PositivePrompt += $", {OutputState.ParsedOutput.emotion}";
+                tagParts.Add(OutputState.ParsedOutput.emotion);
+            
+            workflowConfig.Tags = string.Join(", ", tagParts);
+            
+            // Create sample lyrics based on the narrative
+            if (!string.IsNullOrEmpty(OutputState.ParsedOutput.narrative))
+            {
+                var narrative = OutputState.ParsedOutput.narrative;
+                workflowConfig.Lyrics = $"[verse]\n{narrative.Substring(0, Math.Min(100, narrative.Length))}\n[chorus]\nSing with me tonight\nEverything will be alright";
+            }
         }
         
         StateHasChanged();
