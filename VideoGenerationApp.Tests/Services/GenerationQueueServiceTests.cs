@@ -286,8 +286,9 @@ namespace VideoGenerationApp.Tests.Services
             Assert.NotNull(task);
             Assert.Equal(GenerationStatus.Queued, task.Status);
             Assert.True(task.CreatedAt <= DateTime.UtcNow);
-            Assert.Null(task.SubmittedAt);
-            Assert.Null(task.CompletedAt);
+            Assert.NotNull(task.SubmittedAt); // Task is submitted immediately
+            Assert.True(task.SubmittedAt <= DateTime.UtcNow);
+            Assert.Null(task.CompletedAt); // Should not be completed yet
             Assert.Equal("custom tags", task.Config.Tags);
             Assert.Equal("custom lyrics", task.Config.Lyrics);
         }
