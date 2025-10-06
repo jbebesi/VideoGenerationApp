@@ -111,6 +111,67 @@ namespace VideoGenerationApp.Tests.Services
             Assert.NotNull(retrievedTask);
             Assert.Equal(name, retrievedTask.Name);
             Assert.Equal(GenerationStatus.Queued, retrievedTask.Status);
+            Assert.Equal(GenerationType.Audio, retrievedTask.Type);
+        }
+
+        [Fact]
+        public async Task QueueImageGenerationAsync_AddsImageTaskToQueue_WhenCalled()
+        {
+            // Arrange
+            var name = "Test Image Generation";
+            var config = new ImageWorkflowConfig
+            {
+                PositivePrompt = "beautiful landscape",
+                NegativePrompt = "ugly, blurry",
+                Width = 1024,
+                Height = 1024
+            };
+
+            // Act
+            var taskId = await _generationQueueService.QueueImageGenerationAsync(name, config);
+
+            // Assert
+            Assert.NotNull(taskId);
+            Assert.NotEmpty(taskId);
+            
+            var retrievedTask = _generationQueueService.GetTask(taskId);
+            Assert.NotNull(retrievedTask);
+            Assert.Equal(name, retrievedTask.Name);
+            Assert.Equal(GenerationStatus.Pending, retrievedTask.Status); // Pending because image service not fully implemented
+            Assert.Equal(GenerationType.Image, retrievedTask.Type);
+            Assert.NotNull(retrievedTask.ImageConfig);
+            Assert.Equal(config.PositivePrompt, retrievedTask.ImageConfig.PositivePrompt);
+        }
+
+        [Fact]
+        public async Task QueueVideoGenerationAsync_AddsVideoTaskToQueue_WhenCalled()
+        {
+            // Arrange
+            var name = "Test Video Generation";
+            var config = new VideoWorkflowConfig
+            {
+                TextPrompt = "A beautiful sunset scene",
+                DurationSeconds = 10.0f,
+                Width = 1920,
+                Height = 1080,
+                Fps = 30
+            };
+
+            // Act
+            var taskId = await _generationQueueService.QueueVideoGenerationAsync(name, config);
+
+            // Assert
+            Assert.NotNull(taskId);
+            Assert.NotEmpty(taskId);
+            
+            var retrievedTask = _generationQueueService.GetTask(taskId);
+            Assert.NotNull(retrievedTask);
+            Assert.Equal(name, retrievedTask.Name);
+            Assert.Equal(GenerationStatus.Pending, retrievedTask.Status); // Pending because video service not fully implemented
+            Assert.Equal(GenerationType.Video, retrievedTask.Type);
+            Assert.NotNull(retrievedTask.VideoConfig);
+            Assert.Equal(config.TextPrompt, retrievedTask.VideoConfig.TextPrompt);
+            Assert.Equal(config.DurationSeconds, retrievedTask.VideoConfig.DurationSeconds);
         }
 
         [Fact]
