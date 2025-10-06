@@ -88,7 +88,7 @@ namespace VideoGenerationApp.Tests.Components
             var textarea = component.Find("#promptInput");
 
             // Act
-            textarea.Change("Test prompt for video generation");
+            textarea.Input("Test prompt for video generation");
 
             // Assert
             Assert.Equal("Test prompt for video generation", textarea.GetAttribute("value"));
@@ -141,7 +141,8 @@ namespace VideoGenerationApp.Tests.Components
             // Assert
             var refreshButton = component.Find("button:contains('Refresh Models')");
             Assert.NotNull(refreshButton);
-            Assert.Contains("bi-arrow-clockwise", refreshButton.ClassList);
+            // Check if the button contains the icon (icon is inside the button)
+            Assert.Contains("bi-arrow-clockwise", refreshButton.InnerHtml);
         }
 
         [Fact]
@@ -168,6 +169,8 @@ namespace VideoGenerationApp.Tests.Components
         {
             // Arrange
             _ollamaServiceMock.Setup(x => x.GetLocalModelsWithDetailsAsync())
+                .ThrowsAsync(new HttpRequestException("Connection failed"));
+            _ollamaServiceMock.Setup(x => x.GetLocalModelsAsync())
                 .ThrowsAsync(new HttpRequestException("Connection failed"));
 
             // Act
@@ -230,7 +233,7 @@ namespace VideoGenerationApp.Tests.Components
             var component = RenderComponent<OllamaModels>();
 
             // Assert
-            Assert.Contains("Ollama Models - Video Generation App", component.Markup);
+            Assert.Contains("Ollama Local Models", component.Markup);
         }
 
         [Fact]

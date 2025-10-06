@@ -30,6 +30,10 @@ namespace VideoGenerationApp.Tests.Integration
                 Mock.Of<IWebHostEnvironment>(),
                 Mock.Of<IOptions<ComfyUISettings>>());
 
+            // Setup default mock behavior for virtual methods
+            _mockComfyUIService.Setup(x => x.GetWorkflowConfig())
+                .Returns(new AudioWorkflowConfig());
+
             _factory = factory.WithWebHostBuilder(builder =>
             {
                 builder.ConfigureServices(services =>

@@ -28,8 +28,8 @@ namespace VideoGenerationApp.Tests.Components
         public void Component_RendersCorrectly_WhenInitialized()
         {
             // Arrange
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(new List<GenerationTask>());
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(new List<GenerationTask>());
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -60,8 +60,8 @@ namespace VideoGenerationApp.Tests.Components
                 }
             };
 
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(tasks);
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -101,8 +101,8 @@ namespace VideoGenerationApp.Tests.Components
                 }
             };
 
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(tasks);
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -118,8 +118,8 @@ namespace VideoGenerationApp.Tests.Components
         public void EmptyState_IsShown_WhenNoTasks()
         {
             // Arrange
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(new List<GenerationTask>());
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(new List<GenerationTask>());
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -142,8 +142,8 @@ namespace VideoGenerationApp.Tests.Components
         public void RefreshButton_IsRendered_WhenComponentLoads()
         {
             // Arrange
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(new List<GenerationTask>());
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(new List<GenerationTask>());
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -185,8 +185,8 @@ namespace VideoGenerationApp.Tests.Components
                 }
             };
 
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(tasks);
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -210,8 +210,8 @@ namespace VideoGenerationApp.Tests.Components
         public void Component_HasCorrectPageTitle_WhenRendered()
         {
             // Arrange
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(new List<GenerationTask>());
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(new List<GenerationTask>());
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -239,8 +239,8 @@ namespace VideoGenerationApp.Tests.Components
                 }
             };
 
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(tasks);
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -275,8 +275,8 @@ namespace VideoGenerationApp.Tests.Components
                 }
             };
 
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(tasks);
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
 
             // Act
             var component = RenderComponent<GenerationQueue>();
@@ -310,8 +310,8 @@ namespace VideoGenerationApp.Tests.Components
                 }
             };
 
-            _queueServiceMock.Setup(x => x.GetAllTasks())
-                .Returns(initialTasks);
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(initialTasks);
 
             // Act
             var component = RenderComponent<GenerationQueue>();

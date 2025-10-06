@@ -24,7 +24,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets the current audio workflow configuration
         /// </summary>
-        public AudioWorkflowConfig GetWorkflowConfig()
+        public virtual AudioWorkflowConfig GetWorkflowConfig()
         {
             return _workflowConfig;
         }
