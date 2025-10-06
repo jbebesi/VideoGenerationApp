@@ -166,7 +166,7 @@ Generate the structured output now.
                 .Replace("{{Insert tone here}}", "happy");
         }
 
-        public VideoSceneOutput? TryParseVideoSceneOutput(string rawResponse)
+        public virtual VideoSceneOutput? TryParseVideoSceneOutput(string rawResponse)
         {
             try
             {

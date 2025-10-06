@@ -32,6 +32,10 @@ namespace VideoGenerationApp.Tests.Components
             _outputStateMock = new Mock<OllamaOutputState>();
             _loggerMock = new Mock<ILogger<GenerateAudio>>();
 
+            // Setup ComfyUI service to return a default workflow config
+            _comfyUIServiceMock.Setup(x => x.GetWorkflowConfig())
+                .Returns(new AudioWorkflowConfig());
+
             // Register services
             Services.AddSingleton(_comfyUIServiceMock.Object);
             Services.AddSingleton(_queueServiceMock.Object);
