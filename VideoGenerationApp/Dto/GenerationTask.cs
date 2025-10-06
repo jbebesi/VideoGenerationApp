@@ -3,7 +3,7 @@ using System.ComponentModel.DataAnnotations;
 namespace VideoGenerationApp.Dto
 {
     /// <summary>
-    /// Represents a single audio generation task in the queue
+    /// Represents a single generation task in the queue (audio, image, or video)
     /// </summary>
     public class GenerationTask
     {
@@ -24,6 +24,11 @@ namespace VideoGenerationApp.Dto
         /// The positive prompt used for generation
         /// </summary>
         public string PositivePrompt { get; set; } = string.Empty;
+        
+        /// <summary>
+        /// Type of generation task
+        /// </summary>
+        public GenerationType Type { get; set; } = GenerationType.Audio;
         
         /// <summary>
         /// Current status of the generation task
@@ -51,14 +56,33 @@ namespace VideoGenerationApp.Dto
         public string? ErrorMessage { get; set; }
         
         /// <summary>
-        /// Path to the generated audio file (relative to wwwroot)
+        /// Path to the generated file (relative to wwwroot)
         /// </summary>
         public string? GeneratedFilePath { get; set; }
         
         /// <summary>
-        /// Audio configuration used for this generation
+        /// Audio configuration used for this generation (if Type is Audio)
         /// </summary>
-        public AudioWorkflowConfig Config { get; set; } = new();
+        public AudioWorkflowConfig? AudioConfig { get; set; }
+        
+        /// <summary>
+        /// Image configuration used for this generation (if Type is Image)
+        /// </summary>
+        public ImageWorkflowConfig? ImageConfig { get; set; }
+        
+        /// <summary>
+        /// Video configuration used for this generation (if Type is Video)
+        /// </summary>
+        public VideoWorkflowConfig? VideoConfig { get; set; }
+        
+        /// <summary>
+        /// Legacy audio config property for backward compatibility
+        /// </summary>
+        public AudioWorkflowConfig Config 
+        { 
+            get => AudioConfig ?? new();
+            set => AudioConfig = value;
+        }
         
         /// <summary>
         /// Current position in ComfyUI queue (if known)
@@ -69,6 +93,27 @@ namespace VideoGenerationApp.Dto
         /// Additional metadata or notes
         /// </summary>
         public string? Notes { get; set; }
+    }
+    
+    /// <summary>
+    /// Type of generation task
+    /// </summary>
+    public enum GenerationType
+    {
+        /// <summary>
+        /// Audio generation task
+        /// </summary>
+        Audio,
+        
+        /// <summary>
+        /// Image generation task
+        /// </summary>
+        Image,
+        
+        /// <summary>
+        /// Video generation task
+        /// </summary>
+        Video
     }
     
     /// <summary>

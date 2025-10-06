@@ -1,0 +1,368 @@
+@page "/generate-video"
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@rendermode InteractiveServer
+@using VideoGenerationApp.Services
+@using VideoGenerationApp.Dto
+@inject GenerationQueueService QueueService
+@inject OllamaOutputState OutputState
+@inject ILogger<GenerateVideo> Logger
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Generate Video - Video Generation App</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h3 class="mb-4">
+                <i class="bi bi-camera-video me-2"></i>
+                Generate Video
+            </h3>
+        </div>
+    </div>
+
+    @if (errorMessage != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> @errorMessage
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Video Configuration Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-camera-video me-2"></i>Video Generation Configuration</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="textPrompt">
+                                Text Prompt / Description
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe what should happen in the video"></i>
+                            </label>
+                            <textarea id="textPrompt" class="form-control" rows="4" @bind="videoConfig.TextPrompt" 
+                                placeholder="e.g., A serene landscape with moving clouds and gentle wind"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="audioFile">
+                                Audio File (optional)
+                                <i class="bi bi-question-circle tooltip-icon" title="Select an audio file from previous generations"></i>
+                            </label>
+                            <select id="audioFile" class="form-control" @bind="videoConfig.AudioFilePath">
+                                <option value="">-- No Audio --</option>
+                                @foreach (var task in audioTasks)
+                                {
+                                    <option value="@task.GeneratedFilePath">@task.Name (@GetDuration(task))</option>
+                                }
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="imageFile">
+                                Base Image (optional)
+                                <i class="bi bi-question-circle tooltip-icon" title="Select an image file from previous generations"></i>
+                            </label>
+                            <select id="imageFile" class="form-control" @bind="videoConfig.ImageFilePath">
+                                <option value="">-- Generate from prompt --</option>
+                                @foreach (var task in imageTasks)
+                                {
+                                    <option value="@task.GeneratedFilePath">@task.Name</option>
+                                }
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="duration">
+                                Duration (seconds)
+                                <i class="bi bi-question-circle tooltip-icon" title="Length of the video in seconds"></i>
+                            </label>
+                            <input id="duration" type="number" class="form-control" step="0.5" min="1" max="120" 
+                                @bind="videoConfig.DurationSeconds" />
+                            @if (!string.IsNullOrEmpty(videoConfig.AudioFilePath))
+                            {
+                                <small class="form-text text-muted">
+                                    Will match audio duration: @GetSelectedAudioDuration() seconds
+                                </small>
+                            }
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="width">
+                                Width
+                                <i class="bi bi-question-circle tooltip-icon" title="Video width in pixels"></i>
+                            </label>
+                            <input id="width" type="number" class="form-control" step="64" min="512" max="2048" 
+                                @bind="videoConfig.Width" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="height">
+                                Height
+                                <i class="bi bi-question-circle tooltip-icon" title="Video height in pixels"></i>
+                            </label>
+                            <input id="height" type="number" class="form-control" step="64" min="512" max="2048" 
+                                @bind="videoConfig.Height" />
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="fps">
+                                FPS (Frames per Second)
+                                <i class="bi bi-question-circle tooltip-icon" title="Video frame rate"></i>
+                            </label>
+                            <select id="fps" class="form-control" @bind="videoConfig.Fps">
+                                <option value="24">24 FPS (Film)</option>
+                                <option value="30">30 FPS (Standard)</option>
+                                <option value="60">60 FPS (Smooth)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="animationStyle">
+                                Animation Style
+                                <i class="bi bi-question-circle tooltip-icon" title="How the video should be animated"></i>
+                            </label>
+                            <select id="animationStyle" class="form-control" @bind="videoConfig.AnimationStyle">
+                                <option value="static">Static (minimal motion)</option>
+                                <option value="smooth">Smooth (gentle movement)</option>
+                                <option value="dynamic">Dynamic (active motion)</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="motionIntensity">
+                                Motion Intensity
+                                <i class="bi bi-question-circle tooltip-icon" title="How much motion/animation (0.0 = none, 1.0 = maximum)"></i>
+                            </label>
+                            <input id="motionIntensity" type="number" class="form-control" step="0.1" min="0" max="1" 
+                                @bind="videoConfig.MotionIntensity" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="steps">
+                                Generation Steps
+                                <i class="bi bi-question-circle tooltip-icon" title="Number of denoising steps (higher = better quality, slower)"></i>
+                            </label>
+                            <input id="steps" type="number" class="form-control" min="1" max="100" 
+                                @bind="videoConfig.Steps" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cfgScale">
+                                CFG Scale
+                                <i class="bi bi-question-circle tooltip-icon" title="How closely to follow the prompt (1-20)"></i>
+                            </label>
+                            <input id="cfgScale" type="number" class="form-control" step="0.5" min="1" max="20" 
+                                @bind="videoConfig.CFGScale" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="quality">
+                                Quality
+                                <i class="bi bi-question-circle tooltip-icon" title="Video compression quality (0-100, higher = better)"></i>
+                            </label>
+                            <input id="quality" type="number" class="form-control" min="0" max="100" 
+                                @bind="videoConfig.Quality" />
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex gap-2 mb-4">
+                <button class="btn btn-primary" @onclick="QueueVideoGeneration" disabled="@isGenerating">
+                    <i class="bi bi-play-fill me-2"></i>
+                    @if (isGenerating)
+                    {
+                        <span>Generating...</span>
+                    }
+                    else
+                    {
+                        <span>Generate Video</span>
+                    }
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="ResetParameters">
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
+                </button>
+            </div>
+
+            <!-- Ollama Scene Reference -->
+            @if (OutputState.ParsedOutput != null)
+            {
+                <div class="parameter-section">
+                    <h5><i class="bi bi-file-text me-2"></i>Ollama Scene Reference</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <p><strong>Narrative:</strong> @OutputState.ParsedOutput.narrative</p>
+                            <p><strong>Visual Description:</strong> @OutputState.ParsedOutput.visual_description</p>
+                            <p><strong>Mood:</strong> @OutputState.ParsedOutput.tone (@OutputState.ParsedOutput.emotion)</p>
+                            @if (OutputState.ParsedOutput.video_actions != null && OutputState.ParsedOutput.video_actions.Any())
+                            {
+                                <p><strong>Suggested Actions:</strong> @string.Join(", ", OutputState.ParsedOutput.video_actions)</p>
+                            }
+                            <button class="btn btn-sm btn-outline-primary" @onclick="UseOllamaPrompt">
+                                <i class="bi bi-arrow-down me-1"></i>Use Scene as Prompt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Info Section -->
+        <div class="col-lg-4">
+            <div class="parameter-section">
+                <h5><i class="bi bi-info-circle me-2"></i>Info</h5>
+                <div class="card">
+                    <div class="card-body">
+                        <p><strong>Selected Audio:</strong> @(string.IsNullOrEmpty(videoConfig.AudioFilePath) ? "None" : GetSelectedAudioName())</p>
+                        <p><strong>Selected Image:</strong> @(string.IsNullOrEmpty(videoConfig.ImageFilePath) ? "None" : GetSelectedImageName())</p>
+                        <p><strong>Estimated Duration:</strong> @videoConfig.DurationSeconds seconds</p>
+                        <p><strong>Resolution:</strong> @videoConfig.Width x @videoConfig.Height</p>
+                        <p class="mb-0"><strong>Frame Rate:</strong> @videoConfig.Fps FPS</p>
+                    </div>
+                </div>
+                <div class="alert alert-info mt-3">
+                    <small>
+                        <i class="bi bi-lightbulb me-1"></i>
+                        <strong>Tip:</strong> Generate audio and images first, then combine them here to create a complete video.
+                    </small>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private VideoWorkflowConfig videoConfig = new();
+    private string? errorMessage;
+    private bool isGenerating;
+    private List<GenerationTask> audioTasks = new();
+    private List<GenerationTask> imageTasks = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadCompletedTasks();
+        
+        // Initialize with Ollama narrative if available
+        if (OutputState.ParsedOutput != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.narrative))
+        {
+            videoConfig.TextPrompt = OutputState.ParsedOutput.narrative;
+        }
+    }
+
+    private async Task LoadCompletedTasks()
+    {
+        var allTasks = await QueueService.GetAllTasksAsync();
+        audioTasks = allTasks.Where(t => t.Type == GenerationType.Audio && 
+                                         t.Status == GenerationStatus.Completed && 
+                                         !string.IsNullOrEmpty(t.GeneratedFilePath)).ToList();
+        imageTasks = allTasks.Where(t => t.Type == GenerationType.Image && 
+                                         t.Status == GenerationStatus.Completed && 
+                                         !string.IsNullOrEmpty(t.GeneratedFilePath)).ToList();
+    }
+
+    private void UseOllamaPrompt()
+    {
+        if (OutputState.ParsedOutput != null)
+        {
+            videoConfig.TextPrompt = OutputState.ParsedOutput.narrative ?? "";
+            if (OutputState.ParsedOutput.video_actions != null && OutputState.ParsedOutput.video_actions.Any())
+            {
+                videoConfig.TextPrompt += "\n\nActions: " + string.Join(", ", OutputState.ParsedOutput.video_actions);
+            }
+            StateHasChanged();
+        }
+    }
+
+    private void ResetParameters()
+    {
+        videoConfig = new VideoWorkflowConfig();
+        StateHasChanged();
+    }
+
+    private string GetDuration(GenerationTask task)
+    {
+        if (task.AudioConfig != null)
+        {
+            return $"{task.AudioConfig.AudioDurationSeconds}s";
+        }
+        return "unknown";
+    }
+
+    private string GetSelectedAudioName()
+    {
+        var task = audioTasks.FirstOrDefault(t => t.GeneratedFilePath == videoConfig.AudioFilePath);
+        return task?.Name ?? "Unknown";
+    }
+
+    private string GetSelectedImageName()
+    {
+        var task = imageTasks.FirstOrDefault(t => t.GeneratedFilePath == videoConfig.ImageFilePath);
+        return task?.Name ?? "Unknown";
+    }
+
+    private float GetSelectedAudioDuration()
+    {
+        var task = audioTasks.FirstOrDefault(t => t.GeneratedFilePath == videoConfig.AudioFilePath);
+        if (task?.AudioConfig != null)
+        {
+            // Auto-update duration when audio is selected
+            videoConfig.DurationSeconds = task.AudioConfig.AudioDurationSeconds;
+            return task.AudioConfig.AudioDurationSeconds;
+        }
+        return videoConfig.DurationSeconds;
+    }
+
+    private async Task QueueVideoGeneration()
+    {
+        isGenerating = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            // Update duration to match audio if audio is selected
+            if (!string.IsNullOrEmpty(videoConfig.AudioFilePath))
+            {
+                GetSelectedAudioDuration();
+            }
+
+            Logger.LogInformation("Queueing video generation: {Prompt}", videoConfig.TextPrompt);
+
+            // Generate a user-friendly name from the prompt
+            var taskName = !string.IsNullOrWhiteSpace(videoConfig.TextPrompt) && videoConfig.TextPrompt.Length > 10
+                ? videoConfig.TextPrompt.Substring(0, Math.Min(50, videoConfig.TextPrompt.Length))
+                : "Video Generation";
+
+            if (taskName.Length > 80)
+                taskName = taskName.Substring(0, 77) + "...";
+
+            // Queue the generation
+            var taskId = await QueueService.QueueVideoGenerationAsync(taskName, videoConfig);
+
+            // Show success message
+            await JSRuntime.InvokeVoidAsync("alert",
+                $"Video generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error queueing video generation");
+            errorMessage = $"Failed to queue video generation: {ex.Message}";
+        }
+        finally
+        {
+            isGenerating = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}

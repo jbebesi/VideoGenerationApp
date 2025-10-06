@@ -54,7 +54,7 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Adds a new generation task to the queue
+        /// Adds a new audio generation task to the queue
         /// </summary>
         public virtual async Task<string> QueueGenerationAsync(string name, AudioWorkflowConfig config, string? notes = null)
         {
@@ -62,13 +62,64 @@ namespace VideoGenerationApp.Services
             {
                 Name = name,
                 PositivePrompt = $"{config.Tags} - {config.Lyrics?.Substring(0, Math.Min(50, config.Lyrics?.Length ?? 0))}",
-                Config = config,
+                AudioConfig = config,
+                Type = GenerationType.Audio,
                 Notes = notes,
                 Status = GenerationStatus.Pending
             };
             
             _tasks[task.Id] = task;
-            _logger.LogInformation("Queued new generation task: {TaskId} - {Name}", task.Id, task.Name);
+            _logger.LogInformation("Queued new audio generation task: {TaskId} - {Name}", task.Id, task.Name);
+            
+            // Submit to ComfyUI immediately
+            await SubmitTaskAsync(task);
+            
+            TaskStatusChanged?.Invoke(task);
+            return task.Id;
+        }
+        
+        /// <summary>
+        /// Adds a new image generation task to the queue
+        /// </summary>
+        public virtual async Task<string> QueueImageGenerationAsync(string name, ImageWorkflowConfig config, string? notes = null)
+        {
+            var task = new GenerationTask
+            {
+                Name = name,
+                PositivePrompt = config.PositivePrompt,
+                ImageConfig = config,
+                Type = GenerationType.Image,
+                Notes = notes,
+                Status = GenerationStatus.Pending
+            };
+            
+            _tasks[task.Id] = task;
+            _logger.LogInformation("Queued new image generation task: {TaskId} - {Name}", task.Id, task.Name);
+            
+            // Submit to ComfyUI immediately
+            await SubmitTaskAsync(task);
+            
+            TaskStatusChanged?.Invoke(task);
+            return task.Id;
+        }
+        
+        /// <summary>
+        /// Adds a new video generation task to the queue
+        /// </summary>
+        public virtual async Task<string> QueueVideoGenerationAsync(string name, VideoWorkflowConfig config, string? notes = null)
+        {
+            var task = new GenerationTask
+            {
+                Name = name,
+                PositivePrompt = config.TextPrompt,
+                VideoConfig = config,
+                Type = GenerationType.Video,
+                Notes = notes,
+                Status = GenerationStatus.Pending
+            };
+            
+            _tasks[task.Id] = task;
+            _logger.LogInformation("Queued new video generation task: {TaskId} - {Name}", task.Id, task.Name);
             
             // Submit to ComfyUI immediately
             await SubmitTaskAsync(task);
@@ -188,14 +239,39 @@ namespace VideoGenerationApp.Services
                 task.SubmittedAt = DateTime.UtcNow;
                 
                 using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
                 
-                // Create workflow from config and convert to ComfyUI format
-                var workflow = AudioWorkflowFactory.CreateWorkflow(task.Config);
-                var workflowDict = audioService.ConvertWorkflowToComfyUIFormat(workflow);
+                string? promptId = null;
                 
-                // Submit without waiting for completion
-                var promptId = await audioService.SubmitWorkflowAsync(workflowDict);
+                // Handle different task types
+                switch (task.Type)
+                {
+                    case GenerationType.Audio:
+                        if (task.AudioConfig != null)
+                        {
+                            var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
+                            var workflow = AudioWorkflowFactory.CreateWorkflow(task.AudioConfig);
+                            var workflowDict = audioService.ConvertWorkflowToComfyUIFormat(workflow);
+                            promptId = await audioService.SubmitWorkflowAsync(workflowDict);
+                        }
+                        break;
+                    
+                    case GenerationType.Image:
+                    case GenerationType.Video:
+                        // For now, these will be marked as pending until we implement the services
+                        // Image and video generation will be implemented as simple placeholders
+                        task.Status = GenerationStatus.Pending;
+                        task.ErrorMessage = "Image and video generation support coming soon";
+                        _logger.LogWarning("Image/Video generation not yet fully implemented for task {TaskId}", task.Id);
+                        TaskStatusChanged?.Invoke(task);
+                        return;
+                        
+                    default:
+                        task.Status = GenerationStatus.Failed;
+                        task.ErrorMessage = "Unknown task type";
+                        _logger.LogError("Unknown task type {Type} for task {TaskId}", task.Type, task.Id);
+                        TaskStatusChanged?.Invoke(task);
+                        return;
+                }
                 
                 if (!string.IsNullOrEmpty(promptId))
                 {

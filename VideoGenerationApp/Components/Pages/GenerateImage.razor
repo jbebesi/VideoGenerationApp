@@ -1,0 +1,245 @@
+@page "/generate-image"
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@rendermode InteractiveServer
+@using VideoGenerationApp.Services
+@using VideoGenerationApp.Dto
+@inject GenerationQueueService QueueService
+@inject OllamaOutputState OutputState
+@inject ILogger<GenerateImage> Logger
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Generate Image - Video Generation App</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h3 class="mb-4">
+                <i class="bi bi-image me-2"></i>
+                Generate Image
+            </h3>
+        </div>
+    </div>
+
+    @if (errorMessage != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> @errorMessage
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Image Configuration Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-image me-2"></i>Image Generation Configuration</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="positivePrompt">
+                                Positive Prompt
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you want in the image"></i>
+                            </label>
+                            <textarea id="positivePrompt" class="form-control" rows="4" @bind="imageConfig.PositivePrompt" 
+                                placeholder="e.g., beautiful landscape, mountains, sunset, high quality, detailed"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="negativePrompt">
+                                Negative Prompt
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you don't want in the image"></i>
+                            </label>
+                            <textarea id="negativePrompt" class="form-control" rows="3" @bind="imageConfig.NegativePrompt" 
+                                placeholder="e.g., ugly, blurry, low quality, distorted"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="width">
+                                Width
+                                <i class="bi bi-question-circle tooltip-icon" title="Image width in pixels"></i>
+                            </label>
+                            <input id="width" type="number" class="form-control" step="64" min="512" max="2048" 
+                                @bind="imageConfig.Width" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="height">
+                                Height
+                                <i class="bi bi-question-circle tooltip-icon" title="Image height in pixels"></i>
+                            </label>
+                            <input id="height" type="number" class="form-control" step="64" min="512" max="2048" 
+                                @bind="imageConfig.Height" />
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="steps">
+                                Generation Steps
+                                <i class="bi bi-question-circle tooltip-icon" title="Number of denoising steps (higher = better quality, slower)"></i>
+                            </label>
+                            <input id="steps" type="number" class="form-control" min="1" max="150" 
+                                @bind="imageConfig.Steps" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cfgScale">
+                                CFG Scale
+                                <i class="bi bi-question-circle tooltip-icon" title="How closely to follow the prompt (1-30, higher = more adherence)"></i>
+                            </label>
+                            <input id="cfgScale" type="number" class="form-control" step="0.5" min="1" max="30" 
+                                @bind="imageConfig.CFGScale" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="seed">
+                                Seed
+                                <i class="bi bi-question-circle tooltip-icon" title="Random seed for reproducibility (-1 for random)"></i>
+                            </label>
+                            <input id="seed" type="number" class="form-control" 
+                                @bind="imageConfig.Seed" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="sampler">
+                                Sampler
+                                <i class="bi bi-question-circle tooltip-icon" title="Sampling algorithm to use"></i>
+                            </label>
+                            <select id="sampler" class="form-control" @bind="imageConfig.SamplerName">
+                                <option value="euler">Euler</option>
+                                <option value="euler_ancestral">Euler Ancestral</option>
+                                <option value="dpm_2">DPM 2</option>
+                                <option value="dpm_2_ancestral">DPM 2 Ancestral</option>
+                                <option value="dpmpp_2m">DPM++ 2M</option>
+                                <option value="dpmpp_sde">DPM++ SDE</option>
+                            </select>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex gap-2 mb-4">
+                <button class="btn btn-primary" @onclick="QueueImageGeneration" disabled="@isGenerating">
+                    <i class="bi bi-play-fill me-2"></i>
+                    @if (isGenerating)
+                    {
+                        <span>Generating...</span>
+                    }
+                    else
+                    {
+                        <span>Generate Image</span>
+                    }
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="ResetParameters">
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
+                </button>
+            </div>
+
+            <!-- Video Scene Content (if available from Ollama) -->
+            @if (OutputState.ParsedOutput != null)
+            {
+                <div class="parameter-section">
+                    <h5><i class="bi bi-file-text me-2"></i>Ollama Scene Reference</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <p><strong>Visual Description:</strong> @OutputState.ParsedOutput.visual_description</p>
+                            <p><strong>Narrative:</strong> @OutputState.ParsedOutput.narrative</p>
+                            <p><strong>Mood:</strong> @OutputState.ParsedOutput.tone (@OutputState.ParsedOutput.emotion)</p>
+                            <button class="btn btn-sm btn-outline-primary" @onclick="UseOllamaPrompt">
+                                <i class="bi bi-arrow-down me-1"></i>Use Visual Description as Prompt
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Preview Section -->
+        <div class="col-lg-4">
+            <div class="parameter-section">
+                <h5><i class="bi bi-eye me-2"></i>Preview</h5>
+                <div class="card">
+                    <div class="card-body text-center">
+                        <p class="text-muted">Generated image will appear here after generation completes</p>
+                        <small>View in Generation Queue for status updates</small>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private ImageWorkflowConfig imageConfig = new();
+    private string? errorMessage;
+    private bool isGenerating;
+
+    protected override void OnInitialized()
+    {
+        // Initialize with Ollama visual description if available
+        if (OutputState.ParsedOutput != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.visual_description))
+        {
+            imageConfig.PositivePrompt = OutputState.ParsedOutput.visual_description;
+        }
+    }
+
+    private void UseOllamaPrompt()
+    {
+        if (OutputState.ParsedOutput != null)
+        {
+            imageConfig.PositivePrompt = OutputState.ParsedOutput.visual_description ?? "";
+            StateHasChanged();
+        }
+    }
+
+    private void ResetParameters()
+    {
+        imageConfig = new ImageWorkflowConfig();
+        StateHasChanged();
+    }
+
+    private async Task QueueImageGeneration()
+    {
+        isGenerating = true;
+        errorMessage = null;
+        StateHasChanged();
+
+        try
+        {
+            Logger.LogInformation("Queueing image generation: {Prompt}", imageConfig.PositivePrompt);
+
+            // Generate a user-friendly name from the prompt
+            var taskName = !string.IsNullOrWhiteSpace(imageConfig.PositivePrompt) && imageConfig.PositivePrompt.Length > 10
+                ? imageConfig.PositivePrompt.Substring(0, Math.Min(50, imageConfig.PositivePrompt.Length))
+                : "Image Generation";
+
+            if (taskName.Length > 80)
+                taskName = taskName.Substring(0, 77) + "...";
+
+            // Queue the generation
+            var taskId = await QueueService.QueueImageGenerationAsync(taskName, imageConfig);
+
+            // Show success message
+            await JSRuntime.InvokeVoidAsync("alert",
+                $"Image generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error queueing image generation");
+            errorMessage = $"Failed to queue image generation: {ex.Message}";
+        }
+        finally
+        {
+            isGenerating = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        // Cleanup if needed
+    }
+}
