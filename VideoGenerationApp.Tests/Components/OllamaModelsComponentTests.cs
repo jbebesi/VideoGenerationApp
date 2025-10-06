@@ -141,7 +141,8 @@ namespace VideoGenerationApp.Tests.Components
             // Assert
             var refreshButton = component.Find("button:contains('Refresh Models')");
             Assert.NotNull(refreshButton);
-            Assert.Contains("bi-arrow-clockwise", refreshButton.ClassList);
+            // Check if the button contains the icon (icon is inside the button)
+            Assert.Contains("bi-arrow-clockwise", refreshButton.InnerHtml);
         }
 
         [Fact]
@@ -168,6 +169,8 @@ namespace VideoGenerationApp.Tests.Components
         {
             // Arrange
             _ollamaServiceMock.Setup(x => x.GetLocalModelsWithDetailsAsync())
+                .ThrowsAsync(new HttpRequestException("Connection failed"));
+            _ollamaServiceMock.Setup(x => x.GetLocalModelsAsync())
                 .ThrowsAsync(new HttpRequestException("Connection failed"));
 
             // Act
