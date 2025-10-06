@@ -19,11 +19,16 @@ The output must include the following fields:
 - ""voice_style"": Description of the speaker's voice (e.g., male, deep, sarcastic).
 - ""visual_description"": What the scene should look like (e.g., background, avatar appearance).
 - ""video_actions"": A list of 2–5 actions or gestures the avatar should perform.
+- ""audio"": An object containing audio-specific instructions and preferences:
+  - ""background_music"": Type of background music or ambient sounds (e.g., ""upbeat instrumental"", ""nature sounds"", ""silence"").
+  - ""sound_effects"": List of sound effects to accompany actions (e.g., [""applause"", ""footsteps"", ""door closing""]).
+  - ""audio_mood"": Overall audio atmosphere (e.g., ""energetic"", ""calm"", ""mysterious"").
+  - ""volume_levels"": Relative volume guidance (e.g., ""speech: loud, music: soft, effects: medium"").
 
 Constraints:
-- Keep the narrative under 100 words.
 - Ensure all fields are filled.
 - Format the output as valid JSON.
+- The audio section should complement the visual and narrative elements.
 
 Topic: {{Insert topic here}}
 Tone: {{Insert tone here}}
@@ -37,14 +42,27 @@ Generate the structured output now.
             _logger = logger;
         }
 
-        public async Task<List<string>> GetLocalModelsAsync()
+        public virtual async Task<List<string>> GetLocalModelsAsync()
         {
             try
             {
                 _logger.LogInformation("Requesting Ollama tags at {Url}", _httpClient.BaseAddress + "/api/tags");
                 var response = await _httpClient.GetFromJsonAsync<OllamaTagsResponse>("/api/tags");
-                var list = response?.models?.Select(m => m.name).ToList() ?? new List<string>();
-                _logger.LogInformation("Ollama returned {Count} models", list.Count);
+                
+                if (response?.models == null)
+                {
+                    _logger.LogWarning("No models returned from Ollama API");
+                    return new List<string>();
+                }
+                
+                // Sort models by size (smallest first) and return just the names
+                var list = response.models
+                    .Where(m => !string.IsNullOrEmpty(m.name))
+                    .OrderBy(m => m.size)
+                    .Select(m => m.name)
+                    .ToList();
+                    
+                _logger.LogInformation("Ollama returned {Count} models, sorted by size", list.Count);
                 return list;
             }
             catch (Exception ex)
@@ -54,7 +72,46 @@ Generate the structured output now.
             }
         }
 
-        public async Task<string> SendPromptAsync(string model, string prompt)
+        public virtual async Task<List<OllamaModel>> GetLocalModelsWithDetailsAsync()
+        {
+            try
+            {
+                _logger.LogInformation("Requesting Ollama tags with details at {Url}", _httpClient.BaseAddress + "/api/tags");
+                
+                var json = await _httpClient.GetStringAsync("/api/tags");
+                _logger.LogDebug("Raw Ollama response: {Json}", json);
+                
+                var options = new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true,
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower
+                };
+                
+                var response = JsonSerializer.Deserialize<OllamaTagsResponse>(json, options);
+                
+                if (response?.models == null)
+                {
+                    _logger.LogWarning("No models returned from Ollama API");
+                    return new List<OllamaModel>();
+                }
+                
+                // Sort models by size (smallest first) and filter out invalid entries
+                var list = response.models
+                    .Where(m => !string.IsNullOrEmpty(m.name))
+                    .OrderBy(m => m.size)
+                    .ToList();
+                    
+                _logger.LogInformation("Ollama returned {Count} models with details, sorted by size", list.Count);
+                return list;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching Ollama tags with details");
+                throw;
+            }
+        }
+
+        public virtual async Task<string> SendPromptAsync(string model, string prompt)
         {
             var request = new OllamaPromptRequest 
             { 
@@ -65,7 +122,7 @@ Generate the structured output now.
             return await SendPromptAsync(request);
         }
 
-        public async Task<string> SendPromptAsync(OllamaPromptRequest request)
+        public virtual async Task<string> SendPromptAsync(OllamaPromptRequest request)
         {
             try
             {
@@ -109,7 +166,7 @@ Generate the structured output now.
                 .Replace("{{Insert tone here}}", "happy");
         }
 
-        public VideoSceneOutput? TryParseVideoSceneOutput(string rawResponse)
+        public virtual VideoSceneOutput? TryParseVideoSceneOutput(string rawResponse)
         {
             try
             {
@@ -147,6 +204,21 @@ Generate the structured output now.
                 _logger.LogError(ex, "Unexpected error parsing VideoSceneOutput");
                 return null;
             }
+        }
+
+        public static string FormatFileSize(long bytes)
+        {
+            string[] suffixes = { "B", "KB", "MB", "GB", "TB" };
+            int counter = 0;
+            decimal number = bytes;
+            
+            while (Math.Round(number / 1024) >= 1)
+            {
+                number /= 1024;
+                counter++;
+            }
+            
+            return $"{number:n1} {suffixes[counter]}";
         }
     }
 }
