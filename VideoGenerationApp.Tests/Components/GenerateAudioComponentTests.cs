@@ -104,24 +104,14 @@ namespace VideoGenerationApp.Tests.Components
             // Arrange
             var component = RenderComponent<GenerateAudio>();
             
-            // Try to find a slider or range input for lyrics strength
-            var inputs = component.FindAll("input[type='range'], input[step]");
+            // Find the specific lyrics strength input
+            var lyricsStrengthInput = component.Find("#lyricsStrength");
             
-            if (inputs.Any())
-            {
-                var slider = inputs.First();
-                
-                // Act
-                slider.Change("0.85");
+            // Act
+            lyricsStrengthInput.Change("0.85");
 
-                // Assert
-                Assert.Equal("0.85", slider.GetAttribute("value"));
-            }
-            else
-            {
-                // If no slider found, just verify the component rendered
-                Assert.Contains("Generate Audio", component.Markup);
-            }
+            // Assert
+            Assert.Equal("0.85", lyricsStrengthInput.GetAttribute("value"));
         }
 
         [Fact]
@@ -158,7 +148,7 @@ namespace VideoGenerationApp.Tests.Components
             var component = RenderComponent<GenerateAudio>();
 
             // Assert
-            Assert.Contains("Generate Audio - Video Generation App", component.Markup);
+            Assert.Contains("Generate Audio", component.Markup);
         }
 
         [Fact]

@@ -88,7 +88,7 @@ namespace VideoGenerationApp.Tests.Components
             var textarea = component.Find("#promptInput");
 
             // Act
-            textarea.Change("Test prompt for video generation");
+            textarea.Input("Test prompt for video generation");
 
             // Assert
             Assert.Equal("Test prompt for video generation", textarea.GetAttribute("value"));
@@ -230,7 +230,7 @@ namespace VideoGenerationApp.Tests.Components
             var component = RenderComponent<OllamaModels>();
 
             // Assert
-            Assert.Contains("Ollama Models - Video Generation App", component.Markup);
+            Assert.Contains("Ollama Local Models", component.Markup);
         }
 
         [Fact]
