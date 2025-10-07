@@ -21,6 +21,10 @@ namespace VideoGenerationApp.Dto
         public float MotionIntensity { get; set; } = 0.5f; // 0.0 to 1.0
         
         // Model settings
+        // NOTE: Video generation requires Stable Video Diffusion (SVD) model.
+        // Default: svd_xt.safetensors - Download via scripts/install.ps1 or manually from:
+        // https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt/resolve/main/svd_xt.safetensors
+        // See VIDEO_GENERATION_SETUP.md for installation instructions.
         public string CheckpointName { get; set; } = "svd_xt.safetensors";
         public long Seed { get; set; } = -1; // -1 for random
         public int Steps { get; set; } = 20;
