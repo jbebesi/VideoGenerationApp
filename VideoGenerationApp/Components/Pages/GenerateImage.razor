@@ -163,8 +163,16 @@
                 <h5><i class="bi bi-eye me-2"></i>Preview</h5>
                 <div class="card">
                     <div class="card-body text-center">
-                        <p class="text-muted">Generated image will appear here after generation completes</p>
-                        <small>View in Generation Queue for status updates</small>
+                        @if (!string.IsNullOrEmpty(lastGeneratedImagePath))
+                        {
+                            <p class="text-muted mb-2">Last Generated Image:</p>
+                            <img src="@lastGeneratedImagePath" alt="Last Generated Image" style="max-width: 100%; height: auto; border-radius: 8px;" />
+                        }
+                        else
+                        {
+                            <p class="text-muted">Generated image will appear here after generation completes</p>
+                            <small>View in Generation Queue for status updates</small>
+                        }
                     </div>
                 </div>
             </div>
@@ -176,14 +184,31 @@
     private ImageWorkflowConfig imageConfig = new();
     private string? errorMessage;
     private bool isGenerating;
+    private string? lastGeneratedImagePath;
 
-    protected override void OnInitialized()
+    protected override async Task OnInitializedAsync()
     {
         // Initialize with Ollama visual description if available
         if (OutputState.ParsedOutput != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.visual_description))
         {
             imageConfig.PositivePrompt = OutputState.ParsedOutput.visual_description;
         }
+
+        // Load the last generated image
+        await LoadLastGeneratedImage();
+    }
+
+    private async Task LoadLastGeneratedImage()
+    {
+        var allTasks = await QueueService.GetAllTasksAsync();
+        var lastImageTask = allTasks
+            .Where(t => t.Type == GenerationType.Image && 
+                       t.Status == GenerationStatus.Completed && 
+                       !string.IsNullOrEmpty(t.GeneratedFilePath))
+            .OrderByDescending(t => t.CompletedAt)
+            .FirstOrDefault();
+
+        lastGeneratedImagePath = lastImageTask?.GeneratedFilePath;
     }
 
     private void UseOllamaPrompt()
@@ -225,6 +250,9 @@
             // Show success message
             await JSRuntime.InvokeVoidAsync("alert",
                 $"Image generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
+            
+            // Reload the last generated image (will update once completed)
+            await LoadLastGeneratedImage();
         }
         catch (Exception ex)
         {
