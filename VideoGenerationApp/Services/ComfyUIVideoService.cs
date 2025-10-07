@@ -212,22 +212,11 @@ namespace VideoGenerationApp.Services
                         }
                         break;
 
-                    case "VHS_VideoCombine":
-                        // VHS_VideoCombine widgets: [frame_rate, loop_count, filename_prefix, format, pingpong, save_image, audio, quality]
-                        if (node.widgets_values.Length >= 8)
+                    case "SaveImage":
+                        // SaveImage widgets: [filename_prefix]
+                        if (node.widgets_values.Length >= 1)
                         {
-                            inputs["frame_rate"] = node.widgets_values[0];
-                            inputs["loop_count"] = node.widgets_values[1];
-                            inputs["filename_prefix"] = node.widgets_values[2];
-                            inputs["format"] = node.widgets_values[3];
-                            inputs["pingpong"] = node.widgets_values[4];
-                            inputs["save_image"] = node.widgets_values[5];
-                            if (node.widgets_values[6] != null)
-                            {
-                                inputs["audio"] = node.widgets_values[6];
-                            }
-                            inputs["videoformat"] = node.widgets_values[3]; // format is also called videoformat in some versions
-                            inputs["crf"] = node.widgets_values[7]; // quality/CRF
+                            inputs["filename_prefix"] = node.widgets_values[0];
                         }
                         break;
                 }
@@ -285,13 +274,10 @@ namespace VideoGenerationApp.Services
                         }
                         break;
 
-                    case "VHS_VideoCombine":
-                        if (node.widgets_values.Length >= 8)
+                    case "SaveImage":
+                        if (node.widgets_values.Length >= 1)
                         {
-                            if (node.widgets_values[0] is int fps) config.Fps = fps;
-                            if (node.widgets_values[2] is string filename) config.OutputFilename = filename;
-                            if (node.widgets_values[3] is string format) config.OutputFormat = format;
-                            if (node.widgets_values[7] is int quality) config.Quality = quality;
+                            if (node.widgets_values[0] is string filename) config.OutputFilename = filename;
                         }
                         break;
                 }
