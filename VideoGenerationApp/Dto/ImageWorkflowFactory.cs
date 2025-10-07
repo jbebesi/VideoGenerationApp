@@ -188,8 +188,8 @@ namespace VideoGenerationApp.Dto
                 },
                 widgets_values = new object[] 
                 { 
-                    config.Seed,
-                    "randomize",  // control_after_generate
+                    config.Seed == -1 ? Random.Shared.NextInt64(0, long.MaxValue) : config.Seed,
+                    config.Seed == -1 ? "randomize" : "fixed",  // control_after_generate
                     config.Steps,
                     config.CFGScale,
                     config.SamplerName,
