@@ -15,6 +15,7 @@ namespace VideoGenerationApp.Tests.Services
         private readonly Mock<IServiceScopeFactory> _serviceScopeFactoryMock;
         private readonly Mock<ILogger<GenerationQueueService>> _loggerMock;
         private readonly Mock<ComfyUIAudioService> _comfyUIAudioServiceMock;
+        private readonly Mock<ComfyUIImageService> _comfyUIImageServiceMock;
         private readonly GenerationQueueService _generationQueueService;
 
         public GenerationQueueServiceTests()
@@ -29,18 +30,31 @@ namespace VideoGenerationApp.Tests.Services
                 Mock.Of<IWebHostEnvironment>(),
                 Mock.Of<IOptions<ComfyUISettings>>());
             
+            // Mock ComfyUIImageService
+            _comfyUIImageServiceMock = new Mock<ComfyUIImageService>(
+                Mock.Of<HttpClient>(),
+                Mock.Of<ILogger<ComfyUIImageService>>(),
+                Mock.Of<IWebHostEnvironment>(),
+                Mock.Of<IOptions<ComfyUISettings>>());
+            
             // Setup service scope mocking
             var serviceProviderMock = new Mock<IServiceProvider>();
             var serviceScopeMock = new Mock<IServiceScope>();
             
             serviceProviderMock.Setup(x => x.GetService(typeof(ComfyUIAudioService)))
                 .Returns(_comfyUIAudioServiceMock.Object);
+            serviceProviderMock.Setup(x => x.GetService(typeof(ComfyUIImageService)))
+                .Returns(_comfyUIImageServiceMock.Object);
             serviceScopeMock.Setup(x => x.ServiceProvider).Returns(serviceProviderMock.Object);
             _serviceScopeFactoryMock.Setup(x => x.CreateScope()).Returns(serviceScopeMock.Object);
             
-            // Setup successful workflow submission
+            // Setup successful workflow submission for audio
             _comfyUIAudioServiceMock.Setup(x => x.SubmitWorkflowAsync(It.IsAny<Dictionary<string, object>>()))
                 .ReturnsAsync("test-prompt-id-123");
+            
+            // Setup successful workflow submission for image
+            _comfyUIImageServiceMock.Setup(x => x.SubmitWorkflowAsync(It.IsAny<Dictionary<string, object>>()))
+                .ReturnsAsync("test-prompt-id-456");
             
             _generationQueueService = new GenerationQueueService(_serviceScopeFactoryMock.Object, _loggerMock.Object);
         }
@@ -137,7 +151,7 @@ namespace VideoGenerationApp.Tests.Services
             var retrievedTask = _generationQueueService.GetTask(taskId);
             Assert.NotNull(retrievedTask);
             Assert.Equal(name, retrievedTask.Name);
-            Assert.Equal(GenerationStatus.Pending, retrievedTask.Status); // Pending because image service not fully implemented
+            Assert.Equal(GenerationStatus.Queued, retrievedTask.Status); // Queued after successful submission
             Assert.Equal(GenerationType.Image, retrievedTask.Type);
             Assert.NotNull(retrievedTask.ImageConfig);
             Assert.Equal(config.PositivePrompt, retrievedTask.ImageConfig.PositivePrompt);
