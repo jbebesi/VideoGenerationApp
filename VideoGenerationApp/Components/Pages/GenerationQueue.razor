@@ -130,12 +130,30 @@
 
                     @if (task.Status == GenerationStatus.Completed && !string.IsNullOrEmpty(task.GeneratedFilePath))
                     {
-                        <div class="audio-player">
-                            <audio controls>
-                                <source src="@task.GeneratedFilePath" type="audio/wav">
-                                Your browser does not support the audio element.
-                            </audio>
-                        </div>
+                        @if (task.Type == GenerationType.Audio)
+                        {
+                            <div class="audio-player">
+                                <audio controls>
+                                    <source src="@task.GeneratedFilePath" type="audio/wav">
+                                    Your browser does not support the audio element.
+                                </audio>
+                            </div>
+                        }
+                        else if (task.Type == GenerationType.Image)
+                        {
+                            <div class="image-preview">
+                                <img src="@task.GeneratedFilePath" alt="Generated Image" style="max-width: 100%; height: auto; border-radius: 8px;" />
+                            </div>
+                        }
+                        else if (task.Type == GenerationType.Video)
+                        {
+                            <div class="video-player">
+                                <video controls style="max-width: 100%; height: auto; border-radius: 8px;">
+                                    <source src="@task.GeneratedFilePath" type="video/mp4">
+                                    Your browser does not support the video element.
+                                </video>
+                            </div>
+                        }
                     }
                 </div>
             }
