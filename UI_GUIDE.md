@@ -25,45 +25,61 @@ The navigation icons are:
 
 **Layout:** Two-column layout
 
+### Information Section
+
+**About Image Generation** (info alert):
+- Explains that the page uses Stable Diffusion to generate images from text descriptions
+- Quick tips: Higher steps = better quality but slower. CFG Scale controls prompt adherence. Use seed for reproducible results.
+- Link to external documentation: [Learn more about parameters](https://stable-diffusion-art.com/know-these-important-parameters-for-stunning-ai-images/)
+
 ### Left Column (Configuration - col-lg-8)
 
 **Image Generation Configuration Section:**
 
 1. **Positive Prompt** (textarea, 4 rows)
    - Placeholder: "e.g., beautiful landscape, mountains, sunset, high quality, detailed"
-   - Tooltip: "Describe what you want in the image"
+   - Tooltip: "Describe what you want in the image. Be specific and use descriptive adjectives. Include quality tags like 'high quality', 'detailed', '8k' for better results."
+   - Helper text: "Describe desired elements, style, quality, and details you want in the image."
 
 2. **Negative Prompt** (textarea, 3 rows)
    - Placeholder: "e.g., ugly, blurry, low quality, distorted"
-   - Tooltip: "Describe what you don't want in the image"
+   - Tooltip: "Describe what you DON'T want in the image. Common exclusions: ugly, blurry, low quality, distorted, deformed, bad anatomy, watermark."
+   - Helper text: "List unwanted elements, artifacts, or quality issues to avoid."
 
 3. **Width** (number input)
    - Range: 512-2048, step: 64
    - Default: 1024
-   - Tooltip: "Image width in pixels"
+   - Tooltip: "Image width in pixels. Must be divisible by 64. Larger sizes need more memory and time. Standard: 512-1024. High-res: 1536-2048."
+   - Helper text: "512-2048 pixels, in steps of 64."
 
 4. **Height** (number input)
    - Range: 512-2048, step: 64
    - Default: 1024
-   - Tooltip: "Image height in pixels"
+   - Tooltip: "Image height in pixels. Must be divisible by 64. Larger sizes need more memory and time. Standard: 512-1024. High-res: 1536-2048."
+   - Helper text: "512-2048 pixels, in steps of 64."
 
 5. **Generation Steps** (number input)
    - Range: 1-150
    - Default: 20
-   - Tooltip: "Number of denoising steps (higher = better quality, slower)"
+   - Tooltip: "Number of denoising iterations. More steps = better quality and detail, but slower generation. Recommended: 20-50 for quality, 15-25 for speed."
+   - Helper text: "Higher values improve quality but increase generation time. Default: 20."
 
-6. **CFG Scale** (number input)
+6. **CFG Scale (Classifier Free Guidance)** (number input)
    - Range: 1-30, step: 0.5
    - Default: 7.0
-   - Tooltip: "How closely to follow the prompt"
+   - Tooltip: "Controls how strictly the AI follows your prompt. Lower (1-6) = more creative/varied. Higher (8-15) = stricter prompt adherence. Very high (>20) may reduce quality."
+   - Helper text: "Controls prompt adherence. Range: 1-30. Recommended: 7-12. Default: 7."
 
 7. **Seed** (number input)
    - Default: -1 (random)
-   - Tooltip: "Random seed for reproducibility (-1 for random)"
+   - Tooltip: "Random seed for reproducibility. Use -1 for random results each time. Use a specific number to reproduce the same image with identical settings."
+   - Helper text: "Set to -1 for random, or use a specific number to reproduce results."
 
 8. **Sampler** (dropdown)
    - Options: Euler, Euler Ancestral, DPM 2, DPM 2 Ancestral, DPM++ 2M, DPM++ SDE
    - Default: euler
+   - Tooltip: "Sampling algorithm affects image generation style and quality. Euler: Fast, good for most uses. DPM++: High quality, slower. Ancestral variants: More random/creative."
+   - Helper text: "Different algorithms produce different styles. Euler is a good default choice."
 
 **Action Buttons:**
 - Primary button: "Generate Image" (with loading state)
