@@ -208,5 +208,64 @@ namespace VideoGenerationApp.Tests.Components
             Assert.Contains("Generation Steps", component.Markup);
             Assert.Contains("CFG Scale", component.Markup);
         }
+
+        [Fact]
+        public void Component_InitializesTextPrompt_WithVisualDescription_WhenAvailable()
+        {
+            // Arrange
+            _outputState.ParsedOutput = new VideoSceneOutput
+            {
+                narrative = "This is the narrative text",
+                visual_description = "A beautiful sunset over the ocean with waves gently rolling",
+                tone = "calm",
+                emotion = "peaceful"
+            };
+
+            // Act
+            var component = RenderComponent<GenerateVideo>();
+
+            // Assert - The textarea should be bound to the visual description
+            var textarea = component.Find("textarea#textPrompt");
+            Assert.NotNull(textarea);
+            // In Blazor, @bind sets the value in the component instance, not in HTML
+            // We verify by checking if the visual description appears in the rendered output
+            Assert.Contains("A beautiful sunset over the ocean", component.Markup);
+        }
+
+        [Fact]
+        public void Component_InitializesTextPrompt_WithNarrative_WhenVisualDescriptionMissing()
+        {
+            // Arrange
+            _outputState.ParsedOutput = new VideoSceneOutput
+            {
+                narrative = "This is the narrative text for fallback",
+                visual_description = "", // Empty visual description
+                tone = "calm",
+                emotion = "peaceful"
+            };
+
+            // Act
+            var component = RenderComponent<GenerateVideo>();
+
+            // Assert - The textarea should be bound to the narrative as fallback
+            var textarea = component.Find("textarea#textPrompt");
+            Assert.NotNull(textarea);
+            // Verify the narrative is used as fallback
+            Assert.Contains("This is the narrative text for fallback", component.Markup);
+        }
+
+        [Fact]
+        public void Component_InitializesTextPrompt_AsEmpty_WhenNoOutputStateData()
+        {
+            // Arrange
+            _outputState.ParsedOutput = null;
+
+            // Act
+            var component = RenderComponent<GenerateVideo>();
+
+            // Assert - The textarea should exist
+            var textarea = component.Find("textarea#textPrompt");
+            Assert.NotNull(textarea);
+        }
     }
 }
