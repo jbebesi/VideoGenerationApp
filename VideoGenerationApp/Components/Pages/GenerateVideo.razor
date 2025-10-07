@@ -248,10 +248,19 @@
     {
         await LoadCompletedTasks();
         
-        // Initialize with Ollama narrative if available
-        if (OutputState.ParsedOutput != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.narrative))
+        // Initialize with Ollama visual description if available
+        if (OutputState.ParsedOutput != null)
         {
-            videoConfig.TextPrompt = OutputState.ParsedOutput.narrative;
+            // Use visual_description for video generation (primary)
+            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.visual_description))
+            {
+                videoConfig.TextPrompt = OutputState.ParsedOutput.visual_description;
+            }
+            // Fallback to narrative if visual_description is missing
+            else if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.narrative))
+            {
+                videoConfig.TextPrompt = OutputState.ParsedOutput.narrative;
+            }
         }
     }
 
@@ -270,7 +279,22 @@
     {
         if (OutputState.ParsedOutput != null)
         {
-            videoConfig.TextPrompt = OutputState.ParsedOutput.narrative ?? "";
+            // Use visual_description for video generation (primary)
+            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.visual_description))
+            {
+                videoConfig.TextPrompt = OutputState.ParsedOutput.visual_description;
+            }
+            // Fallback to narrative if visual_description is missing
+            else if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.narrative))
+            {
+                videoConfig.TextPrompt = OutputState.ParsedOutput.narrative;
+            }
+            else
+            {
+                videoConfig.TextPrompt = "";
+            }
+            
+            // Add video actions if available
             if (OutputState.ParsedOutput.video_actions != null && OutputState.ParsedOutput.video_actions.Any())
             {
                 videoConfig.TextPrompt += "\n\nActions: " + string.Join(", ", OutputState.ParsedOutput.video_actions);
