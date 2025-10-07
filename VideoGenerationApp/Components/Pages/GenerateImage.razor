@@ -18,6 +18,18 @@
                 <i class="bi bi-image me-2"></i>
                 Generate Image
             </h3>
+            
+            <!-- Information Section -->
+            <div class="alert alert-info mb-4">
+                <h6 class="alert-heading"><i class="bi bi-info-circle me-2"></i>About Image Generation</h6>
+                <p class="mb-2">This page uses Stable Diffusion to generate images from text descriptions. Adjust the parameters below to control the quality, style, and characteristics of your generated images.</p>
+                <small>
+                    <strong>Quick Tips:</strong> Higher steps = better quality but slower. CFG Scale controls prompt adherence. Use seed for reproducible results.
+                    <a href="https://stable-diffusion-art.com/know-these-important-parameters-for-stunning-ai-images/" target="_blank" rel="noopener noreferrer" class="alert-link ms-2">
+                        <i class="bi bi-book me-1"></i>Learn more about parameters
+                    </a>
+                </small>
+            </div>
         </div>
     </div>
 
@@ -40,37 +52,41 @@
                         <div class="form-group">
                             <label for="positivePrompt">
                                 Positive Prompt
-                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you want in the image"></i>
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you want in the image. Be specific and use descriptive adjectives. Include quality tags like 'high quality', 'detailed', '8k' for better results."></i>
                             </label>
                             <textarea id="positivePrompt" class="form-control" rows="4" @bind="imageConfig.PositivePrompt" 
                                 placeholder="e.g., beautiful landscape, mountains, sunset, high quality, detailed"></textarea>
+                            <small class="form-text text-muted">Describe desired elements, style, quality, and details you want in the image.</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="negativePrompt">
                                 Negative Prompt
-                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you don't want in the image"></i>
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you DON'T want in the image. Common exclusions: ugly, blurry, low quality, distorted, deformed, bad anatomy, watermark."></i>
                             </label>
                             <textarea id="negativePrompt" class="form-control" rows="3" @bind="imageConfig.NegativePrompt" 
                                 placeholder="e.g., ugly, blurry, low quality, distorted"></textarea>
+                            <small class="form-text text-muted">List unwanted elements, artifacts, or quality issues to avoid.</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="width">
                                 Width
-                                <i class="bi bi-question-circle tooltip-icon" title="Image width in pixels"></i>
+                                <i class="bi bi-question-circle tooltip-icon" title="Image width in pixels. Must be divisible by 64. Larger sizes need more memory and time. Standard: 512-1024. High-res: 1536-2048."></i>
                             </label>
                             <input id="width" type="number" class="form-control" step="64" min="512" max="2048" 
                                 @bind="imageConfig.Width" />
+                            <small class="form-text text-muted">512-2048 pixels, in steps of 64.</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="height">
                                 Height
-                                <i class="bi bi-question-circle tooltip-icon" title="Image height in pixels"></i>
+                                <i class="bi bi-question-circle tooltip-icon" title="Image height in pixels. Must be divisible by 64. Larger sizes need more memory and time. Standard: 512-1024. High-res: 1536-2048."></i>
                             </label>
                             <input id="height" type="number" class="form-control" step="64" min="512" max="2048" 
                                 @bind="imageConfig.Height" />
+                            <small class="form-text text-muted">512-2048 pixels, in steps of 64.</small>
                         </div>
                     </div>
                     
@@ -78,34 +94,37 @@
                         <div class="form-group">
                             <label for="steps">
                                 Generation Steps
-                                <i class="bi bi-question-circle tooltip-icon" title="Number of denoising steps (higher = better quality, slower)"></i>
+                                <i class="bi bi-question-circle tooltip-icon" title="Number of denoising iterations. More steps = better quality and detail, but slower generation. Recommended: 20-50 for quality, 15-25 for speed."></i>
                             </label>
                             <input id="steps" type="number" class="form-control" min="1" max="150" 
                                 @bind="imageConfig.Steps" />
+                            <small class="form-text text-muted">Higher values improve quality but increase generation time. Default: 20.</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="cfgScale">
-                                CFG Scale
-                                <i class="bi bi-question-circle tooltip-icon" title="How closely to follow the prompt (1-30, higher = more adherence)"></i>
+                                CFG Scale (Classifier Free Guidance)
+                                <i class="bi bi-question-circle tooltip-icon" title="Controls how strictly the AI follows your prompt. Lower (1-6) = more creative/varied. Higher (8-15) = stricter prompt adherence. Very high (>20) may reduce quality."></i>
                             </label>
                             <input id="cfgScale" type="number" class="form-control" step="0.5" min="1" max="30" 
                                 @bind="imageConfig.CFGScale" />
+                            <small class="form-text text-muted">Controls prompt adherence. Range: 1-30. Recommended: 7-12. Default: 7.</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="seed">
                                 Seed
-                                <i class="bi bi-question-circle tooltip-icon" title="Random seed for reproducibility (-1 for random)"></i>
+                                <i class="bi bi-question-circle tooltip-icon" title="Random seed for reproducibility. Use -1 for random results each time. Use a specific number to reproduce the same image with identical settings."></i>
                             </label>
                             <input id="seed" type="number" class="form-control" 
                                 @bind="imageConfig.Seed" />
+                            <small class="form-text text-muted">Set to -1 for random, or use a specific number to reproduce results.</small>
                         </div>
                         
                         <div class="form-group">
                             <label for="sampler">
                                 Sampler
-                                <i class="bi bi-question-circle tooltip-icon" title="Sampling algorithm to use"></i>
+                                <i class="bi bi-question-circle tooltip-icon" title="Sampling algorithm affects image generation style and quality. Euler: Fast, good for most uses. DPM++: High quality, slower. Ancestral variants: More random/creative."></i>
                             </label>
                             <select id="sampler" class="form-control" @bind="imageConfig.SamplerName">
                                 <option value="euler">Euler</option>
@@ -115,6 +134,7 @@
                                 <option value="dpmpp_2m">DPM++ 2M</option>
                                 <option value="dpmpp_sde">DPM++ SDE</option>
                             </select>
+                            <small class="form-text text-muted">Different algorithms produce different styles. Euler is a good default choice.</small>
                         </div>
                     </div>
                 </div>
