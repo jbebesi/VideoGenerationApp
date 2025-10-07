@@ -213,15 +213,12 @@ namespace VideoGenerationApp.Tests.Services
             // Assert
             var videoSaveNode = result.Values
                 .Cast<Dictionary<string, object>>()
-                .FirstOrDefault(n => n["class_type"].ToString() == "VHS_VideoCombine");
+                .FirstOrDefault(n => n["class_type"].ToString() == "SaveImage");
             
             Assert.NotNull(videoSaveNode);
             var inputs = videoSaveNode["inputs"] as Dictionary<string, object>;
             Assert.NotNull(inputs);
-            Assert.Equal(30, inputs["frame_rate"]);
             Assert.Equal("test_video", inputs["filename_prefix"]);
-            Assert.Equal("mp4", inputs["format"]);
-            Assert.Equal(90, inputs["crf"]);
         }
 
         [Fact]

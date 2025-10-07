@@ -258,7 +258,7 @@ namespace VideoGenerationApp.Dto
             return new ComfyUINode
             {
                 id = 6,
-                type = "VHS_VideoCombine",
+                type = "SaveImage",
                 pos = new[] { 1700, 200 },
                 size = new[] { 315, 290 },
                 order = 6,
@@ -270,20 +270,11 @@ namespace VideoGenerationApp.Dto
                 outputs = new List<ComfyUIOutput>(),
                 properties = new Dictionary<string, object>
                 {
-                    ["Node name for S&R"] = "VHS_VideoCombine"
+                    ["Node name for S&R"] = "SaveImage"
                 },
                 widgets_values = new object[] 
                 { 
-                    config.Fps,
-                    0, // loop_count (0 = no loop)
-                    config.OutputFilename,
-                    config.OutputFormat,
-                    false, // pingpong
-                    false, // save_image
-                    !string.IsNullOrEmpty(config.AudioFilePath) 
-                        ? Path.GetFileName(config.AudioFilePath) 
-                        : null,
-                    config.Quality
+                    config.OutputFilename
                 }
             };
         }

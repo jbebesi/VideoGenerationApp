@@ -40,7 +40,7 @@ namespace VideoGenerationApp.Tests.Dto
             Assert.Contains("VAEEncode", nodeTypes);
             Assert.Contains("SVD_img2vid_Conditioning", nodeTypes);
             Assert.Contains("VAEDecode", nodeTypes);
-            Assert.Contains("VHS_VideoCombine", nodeTypes);
+            Assert.Contains("SaveImage", nodeTypes);
         }
 
         [Fact]
@@ -108,12 +108,9 @@ namespace VideoGenerationApp.Tests.Dto
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
             // Assert
-            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "VHS_VideoCombine");
+            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "SaveImage");
             Assert.NotNull(videoSaveNode);
-            Assert.Equal(config.Fps, videoSaveNode.widgets_values[0]);
-            Assert.Equal(config.OutputFilename, videoSaveNode.widgets_values[2]);
-            Assert.Equal(config.OutputFormat, videoSaveNode.widgets_values[3]);
-            Assert.Equal(config.Quality, videoSaveNode.widgets_values[7]);
+            Assert.Equal(config.OutputFilename, videoSaveNode.widgets_values[0]);
         }
 
         [Fact]
@@ -164,10 +161,11 @@ namespace VideoGenerationApp.Tests.Dto
             // Act
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
-            // Assert
-            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "VHS_VideoCombine");
+            // Assert - SaveImage node doesn't support audio, so we just check it exists
+            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "SaveImage");
             Assert.NotNull(videoSaveNode);
-            Assert.Equal("audio.mp3", videoSaveNode.widgets_values[6]);
+            // SaveImage only has filename_prefix widget
+            Assert.Single(videoSaveNode.widgets_values);
         }
 
         [Fact]
@@ -182,10 +180,11 @@ namespace VideoGenerationApp.Tests.Dto
             // Act
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
-            // Assert
-            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "VHS_VideoCombine");
+            // Assert - SaveImage node doesn't support audio, so we just check it exists
+            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "SaveImage");
             Assert.NotNull(videoSaveNode);
-            Assert.Null(videoSaveNode.widgets_values[6]);
+            // SaveImage only has filename_prefix widget
+            Assert.Single(videoSaveNode.widgets_values);
         }
 
         [Fact]
