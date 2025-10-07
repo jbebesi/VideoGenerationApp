@@ -25,6 +25,7 @@ namespace VideoGenerationApp.Dto
         public long Seed { get; set; } = -1; // -1 for random
         public int Steps { get; set; } = 20;
         public float CFGScale { get; set; } = 7.0f;
+        public float AugmentationLevel { get; set; } = 0.0f; // SVD augmentation level, typically 0.0-0.3
         
         // Output settings
         public string OutputFilename { get; set; } = "video/ComfyUI";

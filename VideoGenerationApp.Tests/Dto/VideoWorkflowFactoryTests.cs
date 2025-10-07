@@ -72,7 +72,7 @@ namespace VideoGenerationApp.Tests.Dto
                 DurationSeconds = 5.0f,
                 Fps = 24,
                 MotionIntensity = 0.8f,
-                CFGScale = 3.5f,
+                AugmentationLevel = 0.1f,
                 Seed = 54321
             };
 
@@ -89,6 +89,7 @@ namespace VideoGenerationApp.Tests.Dto
             // motionBucketId should be in range based on motion intensity
             var motionBucketId = (int)svdNode.widgets_values[3];
             Assert.InRange(motionBucketId, 127, 255); // 0.8 intensity maps to higher motion
+            Assert.Equal(config.AugmentationLevel, svdNode.widgets_values[4]);
             Assert.Equal(config.Seed, svdNode.widgets_values[5]);
         }
 
