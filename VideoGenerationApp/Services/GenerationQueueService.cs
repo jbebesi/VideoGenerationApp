@@ -300,12 +300,33 @@ namespace VideoGenerationApp.Services
                         break;
                     
                     case GenerationType.Video:
-                        // For now, video will be marked as pending until we implement the service
-                        task.Status = GenerationStatus.Pending;
-                        task.ErrorMessage = "Video generation support coming soon";
-                        _logger.LogWarning("Video generation not yet fully implemented for task {TaskId}", task.Id);
-                        TaskStatusChanged?.Invoke(task);
-                        return;
+                        if (task.VideoConfig != null)
+                        {
+                            _logger.LogDebug("Preparing video workflow for task {TaskId}", task.Id);
+                            var videoService = scope.ServiceProvider.GetRequiredService<ComfyUIVideoService>();
+                            var workflow = VideoWorkflowFactory.CreateWorkflow(task.VideoConfig);
+                            var workflowDict = videoService.ConvertWorkflowToComfyUIFormat(workflow);
+                            
+                            // Log the workflow being sent
+                            var workflowJson = System.Text.Json.JsonSerializer.Serialize(workflowDict, 
+                                new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
+                            _logger.LogDebug("Video workflow JSON for task {TaskId}: {WorkflowJson}", task.Id, workflowJson);
+                            
+                            _logger.LogDebug("Submitting video workflow to ComfyUI for task {TaskId}", task.Id);
+                            promptId = await videoService.SubmitWorkflowAsync(workflowDict);
+                            
+                            // Log the response
+                            if (!string.IsNullOrEmpty(promptId))
+                            {
+                                _logger.LogInformation("Video workflow submitted successfully for task {TaskId}, received prompt ID: {PromptId}", 
+                                    task.Id, promptId);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogError("Video task {TaskId} has no VideoConfig", task.Id);
+                        }
+                        break;
                         
                     default:
                         task.Status = GenerationStatus.Failed;
@@ -439,6 +460,11 @@ namespace VideoGenerationApp.Services
                         outputSubfolder = "image";
                         filePrefix = "image";
                         break;
+                    case GenerationType.Video:
+                        service = scope.ServiceProvider.GetRequiredService<ComfyUIVideoService>();
+                        outputSubfolder = "video";
+                        filePrefix = "video";
+                        break;
                     default:
                         _logger.LogWarning("Unknown task type {Type} for task {TaskId}", task.Type, task.Id);
                         return;
@@ -457,6 +483,10 @@ namespace VideoGenerationApp.Services
                 else if (service is ComfyUIImageService imageService)
                 {
                     queueStatus = await imageService.GetQueueStatusAsync();
+                }
+                else if (service is ComfyUIVideoService videoService)
+                {
+                    queueStatus = await videoService.GetQueueStatusAsync();
                 }
                 
                 var isInQueue = queueStatus?.queue?.Any(q => q.prompt_id == task.PromptId) == true;
