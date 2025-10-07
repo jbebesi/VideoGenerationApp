@@ -78,13 +78,13 @@ namespace VideoGenerationApp.Services
                 var json = JsonSerializer.Serialize(request);
                 var content = new StringContent(json, Encoding.UTF8, "application/json");
 
-                _logger.LogInformation("Submitting workflow to ComfyUI");
+                _logger.LogInformation("Submitting workflow to ComfyUI at {ApiUrl}", _settings.ApiUrl);
                 var response = await _httpClient.PostAsync("/prompt", content);
                 var responseJson = await response.Content.ReadAsStringAsync();
 
                 if (!response.IsSuccessStatusCode)
                 {
-                    _logger.LogError("ComfyUI API error: {StatusCode} - {Content}", response.StatusCode, responseJson);
+                    _logger.LogError("ComfyUI API request failed with status {StatusCode}. Response: {Content}", response.StatusCode, responseJson);
                     
                     // Try to parse error details if possible
                     try
@@ -92,18 +92,18 @@ namespace VideoGenerationApp.Services
                         var errorResponse = JsonSerializer.Deserialize<ComfyUIWorkflowResponse>(responseJson);
                         if (errorResponse?.error != null)
                         {
-                            _logger.LogError("ComfyUI workflow error: {ErrorType} - {ErrorMessage}", 
+                            _logger.LogError("ComfyUI workflow error details - Type: {ErrorType}, Message: {ErrorMessage}", 
                                 errorResponse.error.type, errorResponse.error.message);
                         }
                         if (errorResponse?.node_errors != null && HasNodeErrors(errorResponse.node_errors.Value))
                         {
-                            _logger.LogError("ComfyUI node errors: {NodeErrors}", errorResponse.node_errors.Value);
+                            _logger.LogError("ComfyUI workflow has node errors: {NodeErrors}", errorResponse.node_errors.Value);
                         }
                     }
                     catch (JsonException)
                     {
                         // If we can't parse the error response, just log the raw content
-                        _logger.LogError("Failed to parse ComfyUI error response");
+                        _logger.LogError("Failed to parse ComfyUI error response. Raw response logged above.");
                     }
                     
                     return null;
@@ -114,15 +114,15 @@ namespace VideoGenerationApp.Services
                 // Check if there are validation errors even with a 200 response
                 if (workflowResponse?.error != null || (workflowResponse?.node_errors != null && HasNodeErrors(workflowResponse.node_errors.Value)))
                 {
-                    _logger.LogError("ComfyUI workflow validation failed");
+                    _logger.LogError("ComfyUI workflow validation failed despite successful HTTP response");
                     if (workflowResponse!.error != null)
                     {
-                        _logger.LogError("Error: {ErrorType} - {ErrorMessage}", 
+                        _logger.LogError("Validation error - Type: {ErrorType}, Message: {ErrorMessage}", 
                             workflowResponse.error.type, workflowResponse.error.message);
                     }
                     if (workflowResponse.node_errors != null && HasNodeErrors(workflowResponse.node_errors.Value))
                     {
-                        _logger.LogError("Node errors: {NodeErrors}", workflowResponse.node_errors.Value);
+                        _logger.LogError("Node validation errors: {NodeErrors}", workflowResponse.node_errors.Value);
                     }
                     return null;
                 }
@@ -130,9 +130,20 @@ namespace VideoGenerationApp.Services
                 _logger.LogInformation("Workflow submitted successfully with prompt ID: {PromptId}", workflowResponse?.prompt_id);
                 return workflowResponse?.prompt_id;
             }
+            catch (HttpRequestException ex)
+            {
+                _logger.LogError(ex, "Network error submitting workflow to ComfyUI at {ApiUrl}. Is ComfyUI running and accessible?", _settings.ApiUrl);
+                return null;
+            }
+            catch (TaskCanceledException ex)
+            {
+                _logger.LogError(ex, "Timeout submitting workflow to ComfyUI at {ApiUrl}. The request took longer than {Timeout} minutes.", 
+                    _settings.ApiUrl, _settings.TimeoutMinutes);
+                return null;
+            }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error submitting workflow to ComfyUI");
+                _logger.LogError(ex, "Unexpected error submitting workflow to ComfyUI at {ApiUrl}", _settings.ApiUrl);
                 return null;
             }
         }

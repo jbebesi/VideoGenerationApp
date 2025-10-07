@@ -251,11 +251,11 @@ namespace VideoGenerationApp.Services
                     case GenerationType.Audio:
                         if (task.AudioConfig != null)
                         {
-                            _logger.LogDebug("Preparing audio workflow for task {TaskId}", task.Id);
+                            _logger.LogInformation("Submitting AUDIO generation task {TaskId} to ComfyUI", task.Id);
                             var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
                             var workflow = AudioWorkflowFactory.CreateWorkflow(task.AudioConfig);
                             var workflowDict = audioService.ConvertWorkflowToComfyUIFormat(workflow);
-                            _logger.LogDebug("Submitting audio workflow to ComfyUI for task {TaskId}", task.Id);
+                            _logger.LogDebug("Audio workflow prepared for task {TaskId} with {NodeCount} nodes", task.Id, workflowDict.Count);
                             promptId = await audioService.SubmitWorkflowAsync(workflowDict);
                             
                             if (!string.IsNullOrEmpty(promptId))
@@ -266,24 +266,25 @@ namespace VideoGenerationApp.Services
                         }
                         else
                         {
-                            _logger.LogError("Audio task {TaskId} has no AudioConfig", task.Id);
+                            _logger.LogError("Audio task {TaskId} has no AudioConfig - cannot generate workflow", task.Id);
                         }
                         break;
                     
                     case GenerationType.Image:
                         if (task.ImageConfig != null)
                         {
-                            _logger.LogDebug("Preparing image workflow for task {TaskId}", task.Id);
+                            _logger.LogInformation("Submitting IMAGE generation task {TaskId} to ComfyUI", task.Id);
                             var imageService = scope.ServiceProvider.GetRequiredService<ComfyUIImageService>();
                             var workflow = ImageWorkflowFactory.CreateWorkflow(task.ImageConfig);
                             var workflowDict = imageService.ConvertWorkflowToComfyUIFormat(workflow);
                             
-                            // Log the workflow being sent
+                            _logger.LogDebug("Image workflow prepared for task {TaskId} with {NodeCount} nodes - Size: {Width}x{Height}", 
+                                task.Id, workflowDict.Count, task.ImageConfig.Width, task.ImageConfig.Height);
+                            // Log the workflow being sent (detailed debug info)
                             var workflowJson = System.Text.Json.JsonSerializer.Serialize(workflowDict, 
                                 new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                             _logger.LogDebug("Image workflow JSON for task {TaskId}: {WorkflowJson}", task.Id, workflowJson);
                             
-                            _logger.LogDebug("Submitting image workflow to ComfyUI for task {TaskId}", task.Id);
                             promptId = await imageService.SubmitWorkflowAsync(workflowDict);
                             
                             // Log the response
@@ -295,24 +296,26 @@ namespace VideoGenerationApp.Services
                         }
                         else
                         {
-                            _logger.LogError("Image task {TaskId} has no ImageConfig", task.Id);
+                            _logger.LogError("Image task {TaskId} has no ImageConfig - cannot generate workflow", task.Id);
                         }
                         break;
                     
                     case GenerationType.Video:
                         if (task.VideoConfig != null)
                         {
-                            _logger.LogDebug("Preparing video workflow for task {TaskId}", task.Id);
+                            _logger.LogInformation("Submitting VIDEO generation task {TaskId} to ComfyUI", task.Id);
                             var videoService = scope.ServiceProvider.GetRequiredService<ComfyUIVideoService>();
                             var workflow = VideoWorkflowFactory.CreateWorkflow(task.VideoConfig);
                             var workflowDict = videoService.ConvertWorkflowToComfyUIFormat(workflow);
                             
-                            // Log the workflow being sent
+                            _logger.LogDebug("Video workflow prepared for task {TaskId} with {NodeCount} nodes - Duration: {Duration}s, Size: {Width}x{Height}@{Fps}fps", 
+                                task.Id, workflowDict.Count, task.VideoConfig.DurationSeconds, 
+                                task.VideoConfig.Width, task.VideoConfig.Height, task.VideoConfig.Fps);
+                            // Log the workflow being sent (detailed debug info)
                             var workflowJson = System.Text.Json.JsonSerializer.Serialize(workflowDict, 
                                 new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                             _logger.LogDebug("Video workflow JSON for task {TaskId}: {WorkflowJson}", task.Id, workflowJson);
                             
-                            _logger.LogDebug("Submitting video workflow to ComfyUI for task {TaskId}", task.Id);
                             promptId = await videoService.SubmitWorkflowAsync(workflowDict);
                             
                             // Log the response
@@ -324,7 +327,7 @@ namespace VideoGenerationApp.Services
                         }
                         else
                         {
-                            _logger.LogError("Video task {TaskId} has no VideoConfig", task.Id);
+                            _logger.LogError("Video task {TaskId} has no VideoConfig - cannot generate workflow", task.Id);
                         }
                         break;
                         
@@ -340,16 +343,18 @@ namespace VideoGenerationApp.Services
                 {
                     task.PromptId = promptId;
                     // Keep status as Queued until ComfyUI actually starts processing
-                    _logger.LogInformation("Submitted task {TaskId} ({TaskName}) to ComfyUI with prompt ID: {PromptId} - Status: Queued", 
-                        task.Id, task.Name, promptId);
+                    _logger.LogInformation("✓ Successfully submitted {TaskType} task {TaskId} ({TaskName}) to ComfyUI with prompt ID: {PromptId}", 
+                        task.Type, task.Id, task.Name, promptId);
                 }
                 else
                 {
                     task.Status = GenerationStatus.Failed;
                     task.CompletedAt = DateTime.UtcNow;
-                    task.ErrorMessage = "Failed to submit to ComfyUI - no prompt ID received";
-                    _logger.LogError("Failed to submit task {TaskId} ({TaskName}) to ComfyUI - Type: {TaskType}, No prompt ID received. This may indicate ComfyUI is not running or the workflow is invalid.", 
-                        task.Id, task.Name, task.Type);
+                    task.ErrorMessage = $"Failed to submit {task.Type} workflow to ComfyUI - no prompt ID received. Check logs above for details.";
+                    _logger.LogError("✗ Failed to submit {TaskType} task {TaskId} ({TaskName}) to ComfyUI. No prompt ID received. " +
+                        "Common causes: 1) ComfyUI is not running at the configured URL, 2) Network connectivity issues, " +
+                        "3) Workflow validation errors. Check the error logs above for specific details.", 
+                        task.Type, task.Id, task.Name);
                 }
                 
                 TaskStatusChanged?.Invoke(task);
@@ -358,10 +363,10 @@ namespace VideoGenerationApp.Services
             {
                 task.Status = GenerationStatus.Failed;
                 task.CompletedAt = DateTime.UtcNow;
-                task.ErrorMessage = ex.Message;
+                task.ErrorMessage = $"{task.Type} generation failed: {ex.Message}";
                 
-                _logger.LogError(ex, "Error submitting task {TaskId} ({TaskName}) to ComfyUI - Type: {TaskType}. Error: {ErrorMessage}", 
-                    task.Id, task.Name, task.Type, ex.Message);
+                _logger.LogError(ex, "✗ Error submitting {TaskType} task {TaskId} ({TaskName}) to ComfyUI. Error: {ErrorMessage}", 
+                    task.Type, task.Id, task.Name, ex.Message);
                 TaskStatusChanged?.Invoke(task);
             }
         }
@@ -382,40 +387,25 @@ namespace VideoGenerationApp.Services
                 // Early exit if no active tasks - reduces unnecessary logging and HTTP calls
                 if (activeTasks.Count == 0)
                 {
-                    // Only log if there are any tasks at all (to show failed tasks exist)
-                    if (allTasks.Count > 0)
-                    {
-                        var statusSummary = allTasks.GroupBy(t => t.Status)
-                            .Select(g => $"{g.Key}: {g.Count()}")
-                            .ToList();
-                        _logger.LogDebug("No active tasks to check. Task status summary: {StatusSummary}", string.Join(", ", statusSummary));
-                        
-                        // Log details about failed tasks for debugging
-                        var failedTasks = allTasks.Where(t => t.Status == GenerationStatus.Failed).ToList();
-                        foreach (var failedTask in failedTasks)
-                        {
-                            _logger.LogDebug("Failed task {TaskId} ({TaskName}): {ErrorMessage}, PromptId: {PromptId}", 
-                                failedTask.Id, failedTask.Name, failedTask.ErrorMessage ?? "No error message", 
-                                string.IsNullOrEmpty(failedTask.PromptId) ? "None" : failedTask.PromptId);
-                        }
-                    }
+                    // Only log summary if there are any tasks at all (reduced frequency to avoid spam)
+                    // Note: Failed tasks are already logged when they fail in SubmitTaskAsync, so no need to log them again here
                     return;
                 }
                 
-                _logger.LogDebug("Checking {ActiveCount} active tasks (Total tasks: {TotalCount})", activeTasks.Count, allTasks.Count);
+                _logger.LogDebug("Checking {ActiveCount} active tasks for completion (Total tasks in queue: {TotalCount})", activeTasks.Count, allTasks.Count);
                 
                 if (allTasks.Any())
                 {
                     var statusSummary = allTasks.GroupBy(t => t.Status)
                         .Select(g => $"{g.Key}: {g.Count()}")
                         .ToList();
-                    _logger.LogDebug("Task status summary: {StatusSummary}", string.Join(", ", statusSummary));
+                    _logger.LogDebug("Task queue summary: {StatusSummary}", string.Join(", ", statusSummary));
                 }
                 
                 foreach (var task in activeTasks)
                 {
-                    _logger.LogDebug("Checking completion status for task {TaskId} ({TaskName}) - Status: {Status}, PromptId: {PromptId}", 
-                        task.Id, task.Name, task.Status, task.PromptId);
+                    _logger.LogDebug("→ Checking {TaskType} task {TaskId} ({TaskName}) - Status: {Status}, PromptId: {PromptId}", 
+                        task.Type, task.Id, task.Name, task.Status, task.PromptId);
                     await CheckTaskCompletionAsync(task);
                 }
                 
