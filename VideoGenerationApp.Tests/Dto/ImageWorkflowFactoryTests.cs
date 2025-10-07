@@ -192,5 +192,37 @@ namespace VideoGenerationApp.Tests.Dto
             Assert.All(nodeIds, id => Assert.True(id > 0));
             Assert.Equal(nodeIds.Count, nodeIds.Distinct().Count()); // All IDs are unique
         }
+
+        [Theory]
+        [InlineData(-1, "randomize")] // Random seed
+        [InlineData(0, "fixed")]
+        [InlineData(12345, "fixed")]
+        public void CreateWorkflow_HandlesSeedCorrectly_ForDifferentValues(long seed, string expectedControl)
+        {
+            // Arrange
+            var config = new ImageWorkflowConfig
+            {
+                Seed = seed
+            };
+
+            // Act
+            var result = ImageWorkflowFactory.CreateWorkflow(config);
+
+            // Assert
+            var kSamplerNode = result.nodes.FirstOrDefault(n => n.type == "KSampler");
+            Assert.NotNull(kSamplerNode);
+            
+            if (seed == -1)
+            {
+                // For random seed, should use a generated positive number
+                Assert.True((long)kSamplerNode.widgets_values[0] > 0);
+            }
+            else
+            {
+                Assert.Equal(seed, kSamplerNode.widgets_values[0]);
+            }
+            
+            Assert.Equal(expectedControl, kSamplerNode.widgets_values[1]);
+        }
     }
 }
