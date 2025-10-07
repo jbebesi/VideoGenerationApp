@@ -1,9 +1,18 @@
 using VideoGenerationApp.Components;
 using VideoGenerationApp.Services;
 using VideoGenerationApp.Configuration;
+using VideoGenerationApp.Logging;
 using Microsoft.Extensions.Options;
 
 var builder = WebApplication.CreateBuilder(args);
+
+// Configure console logging with timestamps
+builder.Logging.ClearProviders();
+builder.Logging.AddConsole(options =>
+{
+    options.FormatterName = "custom-timestamp";
+});
+builder.Logging.AddConsoleFormatter<CustomTimestampConsoleFormatter, Microsoft.Extensions.Logging.Console.ConsoleFormatterOptions>();
 
 // Configure settings
 builder.Services.Configure<ComfyUISettings>(
