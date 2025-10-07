@@ -71,7 +71,7 @@ $ErrorActionPreference = "Stop"
 # Detect OS
 $IsWindowsOS = $IsWindows -or ($PSVersionTable.PSVersion.Major -lt 6)
 $IsLinuxOS = $IsLinux
-$IsMacOS = $IsMacOS
+# $IsMacOS is already defined as a built-in variable in PowerShell Core
 
 # Color output helpers
 function Write-Info {
