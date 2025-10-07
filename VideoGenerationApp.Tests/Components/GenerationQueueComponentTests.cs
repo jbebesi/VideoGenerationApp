@@ -344,5 +344,98 @@ namespace VideoGenerationApp.Tests.Components
                 Assert.True(true, "Component handled error by throwing exception");
             }
         }
+
+        [Fact]
+        public void CompletedImageTask_DisplaysImage_WhenRendered()
+        {
+            // Arrange
+            var tasks = new List<GenerationTask>
+            {
+                new GenerationTask
+                {
+                    Id = "image-task",
+                    Name = "Test Image Generation",
+                    Type = GenerationType.Image,
+                    Status = GenerationStatus.Completed,
+                    GeneratedFilePath = "/images/test-image.png",
+                    CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+                    CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+                }
+            };
+
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
+
+            // Act
+            var component = RenderComponent<GenerationQueue>();
+
+            // Assert
+            Assert.Contains("Test Image Generation", component.Markup);
+            Assert.Contains("/images/test-image.png", component.Markup);
+            // Verify img tag is present for image type
+            Assert.Contains("<img", component.Markup);
+        }
+
+        [Fact]
+        public void CompletedVideoTask_DisplaysVideo_WhenRendered()
+        {
+            // Arrange
+            var tasks = new List<GenerationTask>
+            {
+                new GenerationTask
+                {
+                    Id = "video-task",
+                    Name = "Test Video Generation",
+                    Type = GenerationType.Video,
+                    Status = GenerationStatus.Completed,
+                    GeneratedFilePath = "/videos/test-video.mp4",
+                    CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+                    CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+                }
+            };
+
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
+
+            // Act
+            var component = RenderComponent<GenerationQueue>();
+
+            // Assert
+            Assert.Contains("Test Video Generation", component.Markup);
+            Assert.Contains("/videos/test-video.mp4", component.Markup);
+            // Verify video tag is present for video type
+            Assert.Contains("<video", component.Markup);
+        }
+
+        [Fact]
+        public void CompletedAudioTask_DisplaysAudioPlayer_WhenRendered()
+        {
+            // Arrange
+            var tasks = new List<GenerationTask>
+            {
+                new GenerationTask
+                {
+                    Id = "audio-task",
+                    Name = "Test Audio Generation",
+                    Type = GenerationType.Audio,
+                    Status = GenerationStatus.Completed,
+                    GeneratedFilePath = "/audio/test-audio.wav",
+                    CreatedAt = DateTime.UtcNow.AddMinutes(-10),
+                    CompletedAt = DateTime.UtcNow.AddMinutes(-1)
+                }
+            };
+
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(tasks);
+
+            // Act
+            var component = RenderComponent<GenerationQueue>();
+
+            // Assert
+            Assert.Contains("Test Audio Generation", component.Markup);
+            Assert.Contains("/audio/test-audio.wav", component.Markup);
+            // Verify audio tag is present for audio type
+            Assert.Contains("<audio", component.Markup);
+        }
     }
 }
