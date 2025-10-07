@@ -10,7 +10,7 @@ namespace VideoGenerationApp.Dto
         public string NegativePrompt { get; set; } = "ugly, blurry, low quality";
         
         // Model settings
-        public string CheckpointName { get; set; } = "sd_xl_base_1.0.safetensors";
+        public string CheckpointName { get; set; } = "v1-5-pruned-emaonly-fp16.safetensors";
         
         // Image dimensions
         public int Width { get; set; } = 1024;
