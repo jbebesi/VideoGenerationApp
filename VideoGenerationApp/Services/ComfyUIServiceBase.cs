@@ -316,43 +316,64 @@ namespace VideoGenerationApp.Services
                         return null;
                     }
 
-                    // Look for audio outputs in any node
-                    string? audioFilename = null;
-                    string? audioSubfolder = null;
+                    // Look for audio or image outputs in any node
+                    string? outputFilename = null;
+                    string? outputFilenameSubfolder = null;
+                    string? fileExtension = null;
                     
                     foreach (var nodeOutput in outputs.EnumerateObject())
                     {
+                        // Check for audio outputs
                         if (nodeOutput.Value.TryGetProperty("audio", out var audioArray) && audioArray.GetArrayLength() > 0)
                         {
                             var firstAudio = audioArray[0];
                             if (firstAudio.TryGetProperty("filename", out var filename))
                             {
-                                audioFilename = filename.GetString();
+                                outputFilename = filename.GetString();
+                                fileExtension = ".wav";
                             }
                             if (firstAudio.TryGetProperty("subfolder", out var subfolder))
                             {
-                                audioSubfolder = subfolder.GetString();
+                                outputFilenameSubfolder = subfolder.GetString();
+                            }
+                            break;
+                        }
+                        
+                        // Check for image outputs
+                        if (nodeOutput.Value.TryGetProperty("images", out var imageArray) && imageArray.GetArrayLength() > 0)
+                        {
+                            var firstImage = imageArray[0];
+                            if (firstImage.TryGetProperty("filename", out var filename))
+                            {
+                                outputFilename = filename.GetString();
+                                // Determine file extension from filename
+                                var ext = Path.GetExtension(outputFilename);
+                                fileExtension = string.IsNullOrEmpty(ext) ? ".png" : ext;
+                            }
+                            if (firstImage.TryGetProperty("subfolder", out var subfolder))
+                            {
+                                outputFilenameSubfolder = subfolder.GetString();
                             }
                             break;
                         }
                     }
 
-                    if (string.IsNullOrEmpty(audioFilename))
+                    if (string.IsNullOrEmpty(outputFilename))
                     {
-                        _logger.LogWarning("No audio output found for prompt {PromptId} (attempt {Attempt}/{MaxRetries})", 
+                        _logger.LogWarning("No output file found for prompt {PromptId} (attempt {Attempt}/{MaxRetries})", 
                             promptId, attempt, maxRetries);
                         
                         if (attempt < maxRetries)
                         {
-                            _logger.LogDebug("Retrying history fetch for prompt {PromptId}, audio files may not be ready yet", promptId);
+                            _logger.LogDebug("Retrying history fetch for prompt {PromptId}, output files may not be ready yet", promptId);
                             await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds));
                             continue;
                         }
                         return null;
                     }
 
-                    // Found audio file, proceed with download
-                    return await DownloadAudioFileAsync(promptId, audioFilename, audioSubfolder, outputSubfolder, filePrefix);
+                    // Found output file, proceed with download
+                    return await DownloadFileAsync(promptId, outputFilename, outputFilenameSubfolder, outputSubfolder, filePrefix, fileExtension ?? ".png");
                 }
                 
                 // If we reach here, all retries failed
@@ -367,23 +388,23 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Downloads an audio file from ComfyUI and saves it locally
+        /// Downloads a file (audio or image) from ComfyUI and saves it locally
         /// </summary>
-        private async Task<string?> DownloadAudioFileAsync(string promptId, string audioFilename, string? audioSubfolder, string outputSubfolder, string filePrefix)
+        private async Task<string?> DownloadFileAsync(string promptId, string filename, string? comfySubfolder, string outputSubfolder, string filePrefix, string fileExtension)
         {
             try
             {
                 // Download the file from ComfyUI
-                var downloadUrl = string.IsNullOrEmpty(audioSubfolder) 
-                    ? $"/view?filename={audioFilename}" 
-                    : $"/view?filename={audioFilename}&subfolder={audioSubfolder}";
+                var downloadUrl = string.IsNullOrEmpty(comfySubfolder) 
+                    ? $"/view?filename={filename}" 
+                    : $"/view?filename={filename}&subfolder={comfySubfolder}";
                     
-                _logger.LogInformation("Downloading audio file: {DownloadUrl} (from subfolder: {AudioSubfolder})", downloadUrl, audioSubfolder ?? "root");
+                _logger.LogInformation("Downloading file: {DownloadUrl} (from subfolder: {ComfySubfolder})", downloadUrl, comfySubfolder ?? "root");
                 
                 var fileResponse = await _httpClient.GetAsync(downloadUrl);
                 if (!fileResponse.IsSuccessStatusCode)
                 {
-                    _logger.LogError("Failed to download audio file: {StatusCode}", fileResponse.StatusCode);
+                    _logger.LogError("Failed to download file: {StatusCode}", fileResponse.StatusCode);
                     return null;
                 }
 
@@ -397,8 +418,8 @@ namespace VideoGenerationApp.Services
                 Directory.CreateDirectory(outputsPath);
                 _logger.LogDebug("Created/verified output directory: {OutputsPath}", outputsPath);
 
-                // Save the file locally
-                var localFileName = $"{filePrefix}_{promptId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}.wav";
+                // Save the file locally with appropriate extension
+                var localFileName = $"{filePrefix}_{promptId}_{DateTime.UtcNow:yyyyMMdd_HHmmss}{fileExtension}";
                 var localFilePath = Path.Combine(outputsPath, localFileName);
                 
                 _logger.LogInformation("Saving file to: {LocalFilePath}", localFilePath);
@@ -407,12 +428,12 @@ namespace VideoGenerationApp.Services
                 await fileResponse.Content.CopyToAsync(fileStream);
                 
                 var returnPath = $"/{outputSubfolder}/{localFileName}";
-                _logger.LogInformation("Audio file downloaded and saved: {FilePath}, returning web path: {ReturnPath}", localFilePath, returnPath);
+                _logger.LogInformation("File downloaded and saved: {FilePath}, returning web path: {ReturnPath}", localFilePath, returnPath);
                 return returnPath;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error downloading audio file for prompt {PromptId}", promptId);
+                _logger.LogError(ex, "Error downloading file for prompt {PromptId}", promptId);
                 return null;
             }
         }
