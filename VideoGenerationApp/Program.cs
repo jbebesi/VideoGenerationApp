@@ -38,6 +38,16 @@ builder.Services.AddScoped<ComfyUIAudioService>(sp =>
     return new ComfyUIAudioService(httpClientFactory.CreateClient(), logger, environment, settings);
 });
 
+// Register ComfyUI image service
+builder.Services.AddScoped<ComfyUIImageService>(sp =>
+{
+    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
+    var logger = sp.GetRequiredService<ILogger<ComfyUIImageService>>();
+    var environment = sp.GetRequiredService<IWebHostEnvironment>();
+    var settings = sp.GetRequiredService<IOptions<ComfyUISettings>>();
+    return new ComfyUIImageService(httpClientFactory.CreateClient(), logger, environment, settings);
+});
+
 // Register Generation Queue Service as hosted service
 builder.Services.AddSingleton<GenerationQueueService>();
 builder.Services.AddHostedService<GenerationQueueService>(provider => provider.GetRequiredService<GenerationQueueService>());
