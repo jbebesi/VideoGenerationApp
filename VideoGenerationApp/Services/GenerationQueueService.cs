@@ -233,6 +233,9 @@ namespace VideoGenerationApp.Services
         /// </summary>
         private async Task SubmitTaskAsync(GenerationTask task)
         {
+            _logger.LogInformation("Starting submission of task {TaskId} ({TaskName}) - Type: {TaskType}", 
+                task.Id, task.Name, task.Type);
+            
             try
             {
                 task.Status = GenerationStatus.Queued;
@@ -248,26 +251,39 @@ namespace VideoGenerationApp.Services
                     case GenerationType.Audio:
                         if (task.AudioConfig != null)
                         {
+                            _logger.LogDebug("Preparing audio workflow for task {TaskId}", task.Id);
                             var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
                             var workflow = AudioWorkflowFactory.CreateWorkflow(task.AudioConfig);
                             var workflowDict = audioService.ConvertWorkflowToComfyUIFormat(workflow);
+                            _logger.LogDebug("Submitting audio workflow to ComfyUI for task {TaskId}", task.Id);
                             promptId = await audioService.SubmitWorkflowAsync(workflowDict);
+                            
+                            if (!string.IsNullOrEmpty(promptId))
+                            {
+                                _logger.LogInformation("Audio workflow submitted successfully for task {TaskId}, received prompt ID: {PromptId}", 
+                                    task.Id, promptId);
+                            }
+                        }
+                        else
+                        {
+                            _logger.LogError("Audio task {TaskId} has no AudioConfig", task.Id);
                         }
                         break;
                     
                     case GenerationType.Image:
                         if (task.ImageConfig != null)
                         {
+                            _logger.LogDebug("Preparing image workflow for task {TaskId}", task.Id);
                             var imageService = scope.ServiceProvider.GetRequiredService<ComfyUIImageService>();
                             var workflow = ImageWorkflowFactory.CreateWorkflow(task.ImageConfig);
                             var workflowDict = imageService.ConvertWorkflowToComfyUIFormat(workflow);
                             
                             // Log the workflow being sent
-                            _logger.LogInformation("Submitting image workflow for task {TaskId}", task.Id);
                             var workflowJson = System.Text.Json.JsonSerializer.Serialize(workflowDict, 
                                 new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
-                            _logger.LogDebug("Image workflow JSON: {WorkflowJson}", workflowJson);
+                            _logger.LogDebug("Image workflow JSON for task {TaskId}: {WorkflowJson}", task.Id, workflowJson);
                             
+                            _logger.LogDebug("Submitting image workflow to ComfyUI for task {TaskId}", task.Id);
                             promptId = await imageService.SubmitWorkflowAsync(workflowDict);
                             
                             // Log the response
@@ -276,10 +292,10 @@ namespace VideoGenerationApp.Services
                                 _logger.LogInformation("Image workflow submitted successfully for task {TaskId}, received prompt ID: {PromptId}", 
                                     task.Id, promptId);
                             }
-                            else
-                            {
-                                _logger.LogError("Failed to submit image workflow for task {TaskId}, no prompt ID received", task.Id);
-                            }
+                        }
+                        else
+                        {
+                            _logger.LogError("Image task {TaskId} has no ImageConfig", task.Id);
                         }
                         break;
                     
@@ -303,14 +319,16 @@ namespace VideoGenerationApp.Services
                 {
                     task.PromptId = promptId;
                     // Keep status as Queued until ComfyUI actually starts processing
-                    _logger.LogInformation("Submitted task {TaskId} to ComfyUI with prompt ID: {PromptId} - Status: Queued", task.Id, promptId);
+                    _logger.LogInformation("Submitted task {TaskId} ({TaskName}) to ComfyUI with prompt ID: {PromptId} - Status: Queued", 
+                        task.Id, task.Name, promptId);
                 }
                 else
                 {
                     task.Status = GenerationStatus.Failed;
                     task.CompletedAt = DateTime.UtcNow;
-                    task.ErrorMessage = "Failed to submit to ComfyUI";
-                    _logger.LogError("Failed to submit task {TaskId} to ComfyUI", task.Id);
+                    task.ErrorMessage = "Failed to submit to ComfyUI - no prompt ID received";
+                    _logger.LogError("Failed to submit task {TaskId} ({TaskName}) to ComfyUI - Type: {TaskType}, No prompt ID received. This may indicate ComfyUI is not running or the workflow is invalid.", 
+                        task.Id, task.Name, task.Type);
                 }
                 
                 TaskStatusChanged?.Invoke(task);
@@ -321,7 +339,8 @@ namespace VideoGenerationApp.Services
                 task.CompletedAt = DateTime.UtcNow;
                 task.ErrorMessage = ex.Message;
                 
-                _logger.LogError(ex, "Error submitting task {TaskId} to ComfyUI", task.Id);
+                _logger.LogError(ex, "Error submitting task {TaskId} ({TaskName}) to ComfyUI - Type: {TaskType}. Error: {ErrorMessage}", 
+                    task.Id, task.Name, task.Type, ex.Message);
                 TaskStatusChanged?.Invoke(task);
             }
         }
@@ -339,7 +358,30 @@ namespace VideoGenerationApp.Services
                                && !string.IsNullOrEmpty(t.PromptId))
                     .ToList();
                 
-                _logger.LogDebug("All tasks: {TotalCount}, Active tasks with PromptId: {ActiveCount}", allTasks.Count, activeTasks.Count);
+                // Early exit if no active tasks - reduces unnecessary logging and HTTP calls
+                if (activeTasks.Count == 0)
+                {
+                    // Only log if there are any tasks at all (to show failed tasks exist)
+                    if (allTasks.Count > 0)
+                    {
+                        var statusSummary = allTasks.GroupBy(t => t.Status)
+                            .Select(g => $"{g.Key}: {g.Count()}")
+                            .ToList();
+                        _logger.LogDebug("No active tasks to check. Task status summary: {StatusSummary}", string.Join(", ", statusSummary));
+                        
+                        // Log details about failed tasks for debugging
+                        var failedTasks = allTasks.Where(t => t.Status == GenerationStatus.Failed).ToList();
+                        foreach (var failedTask in failedTasks)
+                        {
+                            _logger.LogDebug("Failed task {TaskId} ({TaskName}): {ErrorMessage}, PromptId: {PromptId}", 
+                                failedTask.Id, failedTask.Name, failedTask.ErrorMessage ?? "No error message", 
+                                string.IsNullOrEmpty(failedTask.PromptId) ? "None" : failedTask.PromptId);
+                        }
+                    }
+                    return;
+                }
+                
+                _logger.LogDebug("Checking {ActiveCount} active tasks (Total tasks: {TotalCount})", activeTasks.Count, allTasks.Count);
                 
                 if (allTasks.Any())
                 {
@@ -347,13 +389,12 @@ namespace VideoGenerationApp.Services
                         .Select(g => $"{g.Key}: {g.Count()}")
                         .ToList();
                     _logger.LogDebug("Task status summary: {StatusSummary}", string.Join(", ", statusSummary));
-                    
-                    var tasksWithPromptId = allTasks.Where(t => !string.IsNullOrEmpty(t.PromptId)).ToList();
-                    _logger.LogDebug("Tasks with PromptId: {TasksWithPromptId}", tasksWithPromptId.Count);
                 }
                 
                 foreach (var task in activeTasks)
                 {
+                    _logger.LogDebug("Checking completion status for task {TaskId} ({TaskName}) - Status: {Status}, PromptId: {PromptId}", 
+                        task.Id, task.Name, task.Status, task.PromptId);
                     await CheckTaskCompletionAsync(task);
                 }
                 
@@ -373,7 +414,11 @@ namespace VideoGenerationApp.Services
         {
             try
             {
-                if (string.IsNullOrEmpty(task.PromptId)) return;
+                if (string.IsNullOrEmpty(task.PromptId))
+                {
+                    _logger.LogWarning("Task {TaskId} ({TaskName}) has no PromptId - cannot check completion status", task.Id, task.Name);
+                    return;
+                }
                 
                 using var scope = _serviceScopeFactory.CreateScope();
                 
@@ -463,6 +508,7 @@ namespace VideoGenerationApp.Services
                 }
                 
                 // Task completed, try to download the file
+                _logger.LogDebug("Task {TaskId} ({TaskName}) not in ComfyUI queue - attempting to download generated file", task.Id, task.Name);
                 var filePath = await service.GetGeneratedFileAsync(task.PromptId, outputSubfolder, filePrefix);
                 
                 if (!string.IsNullOrEmpty(filePath))
@@ -472,7 +518,7 @@ namespace VideoGenerationApp.Services
                     task.CompletedAt = DateTime.UtcNow;
                     task.QueuePosition = null;
                     
-                    _logger.LogInformation("Task {TaskId} completed successfully: {FilePath}", task.Id, filePath);
+                    _logger.LogInformation("Task {TaskId} ({TaskName}) completed successfully: {FilePath}", task.Id, task.Name, filePath);
                     _logger.LogInformation("Invoking TaskStatusChanged event for completed task {TaskId}", task.Id);
                     TaskStatusChanged?.Invoke(task);
                 }
@@ -480,7 +526,8 @@ namespace VideoGenerationApp.Services
                 {
                     // File not ready yet or failed
                     // We'll check again in the next cycle
-                    _logger.LogDebug("Task {TaskId} appears completed but file not ready yet", task.Id);
+                    _logger.LogWarning("Task {TaskId} ({TaskName}) appears completed (not in queue) but file not ready yet. Will retry in next check.", 
+                        task.Id, task.Name);
                 }
             }
             catch (Exception ex)
@@ -490,7 +537,8 @@ namespace VideoGenerationApp.Services
                 task.ErrorMessage = ex.Message;
                 task.QueuePosition = null;
                 
-                _logger.LogError(ex, "Error checking completion for task {TaskId}", task.Id);
+                _logger.LogError(ex, "Error checking completion for task {TaskId} ({TaskName}) - Type: {TaskType}, PromptId: {PromptId}", 
+                    task.Id, task.Name, task.Type, task.PromptId);
                 TaskStatusChanged?.Invoke(task);
             }
         }
