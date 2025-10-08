@@ -60,6 +60,174 @@ namespace VideoGenerationApp.Services
             }
         }
 
+        /// <summary>
+        /// Gets all available models (checkpoints) from ComfyUI for a specific node type
+        /// </summary>
+        /// <param name="nodeType">The node type to query (e.g., "CheckpointLoaderSimple", "ImageOnlyCheckpointLoader")</param>
+        /// <returns>List of available model names</returns>
+        public virtual async Task<List<string>> GetAvailableModelsAsync(string nodeType)
+        {
+            try
+            {
+                _logger.LogInformation("Fetching available models for node type: {NodeType}", nodeType);
+                
+                var response = await _httpClient.GetAsync("/object_info");
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Failed to fetch object info from ComfyUI: {StatusCode}", response.StatusCode);
+                    return new List<string>();
+                }
+
+                var json = await response.Content.ReadAsStringAsync();
+                using var document = JsonDocument.Parse(json);
+                
+                // Navigate to the specific node type in the object_info response
+                if (!document.RootElement.TryGetProperty(nodeType, out var nodeInfo))
+                {
+                    _logger.LogWarning("Node type {NodeType} not found in ComfyUI object_info", nodeType);
+                    return new List<string>();
+                }
+
+                // Get the input types for this node
+                if (!nodeInfo.TryGetProperty("input", out var inputInfo))
+                {
+                    _logger.LogWarning("No input info found for node type {NodeType}", nodeType);
+                    return new List<string>();
+                }
+
+                // Look for the required inputs which contain the model/checkpoint options
+                if (!inputInfo.TryGetProperty("required", out var requiredInputs))
+                {
+                    _logger.LogWarning("No required inputs found for node type {NodeType}", nodeType);
+                    return new List<string>();
+                }
+
+                // Find the checkpoint name field (usually "ckpt_name" or similar)
+                var checkpointFieldNames = new[] { "ckpt_name", "checkpoint", "model_name" };
+                foreach (var fieldName in checkpointFieldNames)
+                {
+                    if (requiredInputs.TryGetProperty(fieldName, out var checkpointField))
+                    {
+                        // The field value is an array where the first element contains the available options
+                        if (checkpointField.ValueKind == JsonValueKind.Array && checkpointField.GetArrayLength() > 0)
+                        {
+                            var optionsElement = checkpointField[0];
+                            if (optionsElement.ValueKind == JsonValueKind.Array)
+                            {
+                                var models = new List<string>();
+                                foreach (var model in optionsElement.EnumerateArray())
+                                {
+                                    if (model.ValueKind == JsonValueKind.String)
+                                    {
+                                        models.Add(model.GetString()!);
+                                    }
+                                }
+                                
+                                _logger.LogInformation("Found {Count} models for node type {NodeType}", models.Count, nodeType);
+                                return models;
+                            }
+                        }
+                    }
+                }
+
+                _logger.LogWarning("No checkpoint field found in required inputs for node type {NodeType}", nodeType);
+                return new List<string>();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error fetching available models from ComfyUI for node type {NodeType}", nodeType);
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Gets available audio generation models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetAudioModelsAsync()
+        {
+            // Audio models use CheckpointLoaderSimple and should have "ace" or "audio" in their name
+            var allModels = await GetAvailableModelsAsync("CheckpointLoaderSimple");
+            return allModels
+                .Where(m => m.ToLowerInvariant().Contains("ace") || 
+                           m.ToLowerInvariant().Contains("audio") ||
+                           m.ToLowerInvariant().Contains("step"))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Gets available image generation models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetImageModelsAsync()
+        {
+            // Image models use CheckpointLoaderSimple and typically include SD, SDXL, or similar
+            var allModels = await GetAvailableModelsAsync("CheckpointLoaderSimple");
+            return allModels
+                .Where(m => !m.ToLowerInvariant().Contains("ace") && 
+                           !m.ToLowerInvariant().Contains("svd") &&
+                           !m.ToLowerInvariant().Contains("video"))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Gets available video generation models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetVideoModelsAsync()
+        {
+            // Video models use ImageOnlyCheckpointLoader or contain "svd" in their name
+            var imageOnlyModels = await GetAvailableModelsAsync("ImageOnlyCheckpointLoader");
+            if (imageOnlyModels.Any())
+            {
+                return imageOnlyModels;
+            }
+
+            // Fallback: check CheckpointLoaderSimple for video models
+            var allModels = await GetAvailableModelsAsync("CheckpointLoaderSimple");
+            return allModels
+                .Where(m => m.ToLowerInvariant().Contains("svd") || 
+                           m.ToLowerInvariant().Contains("video"))
+                .ToList();
+        }
+
+        /// <summary>
+        /// Gets available CLIP (text encoder) models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetCLIPModelsAsync()
+        {
+            return await GetAvailableModelsAsync("CLIPLoader");
+        }
+
+        /// <summary>
+        /// Gets available VAE models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetVAEModelsAsync()
+        {
+            return await GetAvailableModelsAsync("VAELoader");
+        }
+
+        /// <summary>
+        /// Gets available UNET (diffusion model) models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetUNETModelsAsync()
+        {
+            return await GetAvailableModelsAsync("UNETLoader");
+        }
+
+        /// <summary>
+        /// Gets available Audio Encoder models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetAudioEncoderModelsAsync()
+        {
+            return await GetAvailableModelsAsync("AudioEncoderLoader");
+        }
+
+        /// <summary>
+        /// Gets available LoRA models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetLoRAModelsAsync()
+        {
+            return await GetAvailableModelsAsync("LoraLoaderModelOnly");
+        }
+
 
 
         /// <summary>

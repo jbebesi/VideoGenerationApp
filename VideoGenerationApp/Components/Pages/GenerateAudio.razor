@@ -46,6 +46,34 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
+                            <label for="modelSelect">
+                                Audio Model
+                                <i class="bi bi-question-circle tooltip-icon" title="Select the audio generation model to use"></i>
+                            </label>
+                            <select id="modelSelect" class="form-select" @bind="workflowConfig.CheckpointName" disabled="@isLoadingModels">
+                                @if (isLoadingModels)
+                                {
+                                    <option disabled selected>Loading models...</option>
+                                }
+                                else if (availableModels == null || !availableModels.Any())
+                                {
+                                    <option disabled selected>No audio models found</option>
+                                }
+                                else
+                                {
+                                    @foreach (var model in availableModels)
+                                    {
+                                        <option value="@model">@model</option>
+                                    }
+                                }
+                            </select>
+                            @if (availableModels != null && availableModels.Any())
+                            {
+                                <small class="form-text text-muted">@availableModels.Count model(s) available</small>
+                            }
+                        </div>
+                        
+                        <div class="form-group">
                             <label for="tags">
                                 Tags (Genre, Voice, Style)
                                 <i class="bi bi-question-circle tooltip-icon" title="Describe the musical style, genre, voice type, etc."></i>
@@ -233,9 +261,11 @@
 
 @code {
     private bool isComfyUIRunning = false;
+    private bool isLoadingModels = false;
     private string? errorMessage;
     private string? errorDetails;
     private string currentAudioPath = "";
+    private List<string> availableModels = new List<string>();
     
     // Audio workflow configuration
     private AudioWorkflowConfig workflowConfig = new AudioWorkflowConfig();
@@ -251,6 +281,12 @@
         // Check ComfyUI status
         await CheckComfyUIStatus();
         
+        // Load available models if ComfyUI is running
+        if (isComfyUIRunning)
+        {
+            await LoadAvailableModels();
+        }
+        
         // Load current audio if available
         if (OutputState.ParsedOutput?.audio_file_path != null)
         {
@@ -264,6 +300,12 @@
         {
             isComfyUIRunning = await ComfyUIAudioService.IsComfyUIRunningAsync();
             Logger.LogInformation("ComfyUI status check: {Status}", isComfyUIRunning ? "Running" : "Stopped");
+            
+            // Load models when ComfyUI status changes to running
+            if (isComfyUIRunning && !availableModels.Any())
+            {
+                await LoadAvailableModels();
+            }
         }
         catch (Exception ex)
         {
@@ -271,6 +313,45 @@
             isComfyUIRunning = false;
         }
         StateHasChanged();
+    }
+
+    private async Task LoadAvailableModels()
+    {
+        try
+        {
+            isLoadingModels = true;
+            StateHasChanged();
+            
+            Logger.LogInformation("Loading available audio models from ComfyUI");
+            availableModels = await ComfyUIAudioService.GetAudioModelsAsync();
+            
+            // If no audio-specific models found, fall back to all checkpoints
+            if (!availableModels.Any())
+            {
+                Logger.LogWarning("No audio-specific models found, loading all checkpoints");
+                availableModels = await ComfyUIAudioService.GetAvailableModelsAsync("CheckpointLoaderSimple");
+            }
+            
+            // If current checkpoint is not in the list and list is not empty, select the first one
+            if (availableModels.Any() && !availableModels.Contains(workflowConfig.CheckpointName))
+            {
+                workflowConfig.CheckpointName = availableModels[0];
+                Logger.LogInformation("Selected default model: {Model}", workflowConfig.CheckpointName);
+            }
+            
+            Logger.LogInformation("Loaded {Count} audio models", availableModels.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading available models");
+            errorMessage = "Failed to load available models";
+            errorDetails = ex.ToString();
+        }
+        finally
+        {
+            isLoadingModels = false;
+            StateHasChanged();
+        }
     }
 
     private async Task GenerateAudioAsync()

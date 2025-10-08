@@ -38,6 +38,34 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
+                            <label for="modelSelect">
+                                Video Model
+                                <i class="bi bi-question-circle tooltip-icon" title="Select the video generation model to use. SVD models are designed for image-to-video generation."></i>
+                            </label>
+                            <select id="modelSelect" class="form-select" @bind="videoConfig.CheckpointName" disabled="@isLoadingModels">
+                                @if (isLoadingModels)
+                                {
+                                    <option disabled selected>Loading models...</option>
+                                }
+                                else if (availableModels == null || !availableModels.Any())
+                                {
+                                    <option disabled selected>No video models found</option>
+                                }
+                                else
+                                {
+                                    @foreach (var model in availableModels)
+                                    {
+                                        <option value="@model">@model</option>
+                                    }
+                                }
+                            </select>
+                            @if (availableModels != null && availableModels.Any())
+                            {
+                                <small class="form-text text-muted">@availableModels.Count model(s) available</small>
+                            }
+                        </div>
+                        
+                        <div class="form-group">
                             <label for="textPrompt">
                                 Text Prompt / Description
                                 <i class="bi bi-question-circle tooltip-icon" title="Describe what should happen in the video"></i>
@@ -253,8 +281,10 @@
     private VideoWorkflowConfig videoConfig = new();
     private string? errorMessage;
     private bool isGenerating;
+    private bool isLoadingModels;
     private List<GenerationTask> audioTasks = new();
     private List<GenerationTask> imageTasks = new();
+    private List<string> availableModels = new List<string>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -273,6 +303,42 @@
             {
                 videoConfig.TextPrompt = OutputState.ParsedOutput.narrative;
             }
+        }
+        
+        // Load available models
+        await LoadAvailableModels();
+    }
+
+    private async Task LoadAvailableModels()
+    {
+        try
+        {
+            isLoadingModels = true;
+            StateHasChanged();
+            
+            Logger.LogInformation("Loading available video models from ComfyUI via QueueService");
+            
+            // Get models from the queue service which has access to ComfyUI services
+            availableModels = await QueueService.GetVideoModelsAsync();
+            
+            // If current checkpoint is not in the list and list is not empty, select the first one
+            if (availableModels.Any() && !availableModels.Contains(videoConfig.CheckpointName))
+            {
+                videoConfig.CheckpointName = availableModels[0];
+                Logger.LogInformation("Selected default video model: {Model}", videoConfig.CheckpointName);
+            }
+            
+            Logger.LogInformation("Loaded {Count} video models", availableModels.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading available models");
+            // Continue with default model if loading fails
+        }
+        finally
+        {
+            isLoadingModels = false;
+            StateHasChanged();
         }
     }
 

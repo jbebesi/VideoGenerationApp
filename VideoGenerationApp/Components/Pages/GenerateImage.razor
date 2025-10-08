@@ -50,6 +50,34 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
+                            <label for="modelSelect">
+                                Image Model
+                                <i class="bi bi-question-circle tooltip-icon" title="Select the image generation model to use. Different models produce different artistic styles."></i>
+                            </label>
+                            <select id="modelSelect" class="form-select" @bind="imageConfig.CheckpointName" disabled="@isLoadingModels">
+                                @if (isLoadingModels)
+                                {
+                                    <option disabled selected>Loading models...</option>
+                                }
+                                else if (availableModels == null || !availableModels.Any())
+                                {
+                                    <option disabled selected>No image models found</option>
+                                }
+                                else
+                                {
+                                    @foreach (var model in availableModels)
+                                    {
+                                        <option value="@model">@model</option>
+                                    }
+                                }
+                            </select>
+                            @if (availableModels != null && availableModels.Any())
+                            {
+                                <small class="form-text text-muted">@availableModels.Count model(s) available</small>
+                            }
+                        </div>
+                        
+                        <div class="form-group">
                             <label for="positivePrompt">
                                 Positive Prompt
                                 <i class="bi bi-question-circle tooltip-icon" title="Describe what you want in the image. Be specific and use descriptive adjectives. Include quality tags like 'high quality', 'detailed', '8k' for better results."></i>
@@ -204,7 +232,9 @@
     private ImageWorkflowConfig imageConfig = new();
     private string? errorMessage;
     private bool isGenerating;
+    private bool isLoadingModels;
     private string? lastGeneratedImagePath;
+    private List<string> availableModels = new List<string>();
 
     protected override async Task OnInitializedAsync()
     {
@@ -216,6 +246,42 @@
 
         // Load the last generated image
         await LoadLastGeneratedImage();
+        
+        // Load available models
+        await LoadAvailableModels();
+    }
+
+    private async Task LoadAvailableModels()
+    {
+        try
+        {
+            isLoadingModels = true;
+            StateHasChanged();
+            
+            Logger.LogInformation("Loading available image models from ComfyUI via QueueService");
+            
+            // Get models from the queue service which has access to ComfyUI services
+            availableModels = await QueueService.GetImageModelsAsync();
+            
+            // If current checkpoint is not in the list and list is not empty, select the first one
+            if (availableModels.Any() && !availableModels.Contains(imageConfig.CheckpointName))
+            {
+                imageConfig.CheckpointName = availableModels[0];
+                Logger.LogInformation("Selected default image model: {Model}", imageConfig.CheckpointName);
+            }
+            
+            Logger.LogInformation("Loaded {Count} image models", availableModels.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading available models");
+            // Continue with default model if loading fails
+        }
+        finally
+        {
+            isLoadingModels = false;
+            StateHasChanged();
+        }
     }
 
     private async Task LoadLastGeneratedImage()

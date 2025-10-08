@@ -22,6 +22,10 @@ namespace VideoGenerationApp.Tests.Components
             _outputStateMock = new Mock<OllamaOutputState>();
             _loggerMock = new Mock<ILogger<GenerateImage>>();
 
+            // Setup default mock behaviors for new methods
+            _queueServiceMock.Setup(x => x.GetImageModelsAsync())
+                .ReturnsAsync(new List<string>());
+
             // Register services
             Services.AddSingleton(_queueServiceMock.Object);
             Services.AddSingleton(_outputStateMock.Object);
