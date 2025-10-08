@@ -600,6 +600,60 @@ namespace VideoGenerationApp.Services
             }
         }
         
+        /// <summary>
+        /// Gets available audio generation models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetAudioModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
+                return await audioService.GetAudioModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting audio models from ComfyUI");
+                return new List<string>();
+            }
+        }
+        
+        /// <summary>
+        /// Gets available image generation models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetImageModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var imageService = scope.ServiceProvider.GetRequiredService<ComfyUIImageService>();
+                return await imageService.GetImageModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting image models from ComfyUI");
+                return new List<string>();
+            }
+        }
+        
+        /// <summary>
+        /// Gets available video generation models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetVideoModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var videoService = scope.ServiceProvider.GetRequiredService<ComfyUIVideoService>();
+                return await videoService.GetVideoModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting video models from ComfyUI");
+                return new List<string>();
+            }
+        }
+        
         public void Dispose()
         {
             _monitorTimer?.Dispose();

@@ -35,6 +35,10 @@ namespace VideoGenerationApp.Tests.Components
             // Setup ComfyUI service to return a default workflow config
             _comfyUIServiceMock.Setup(x => x.GetWorkflowConfig())
                 .Returns(new AudioWorkflowConfig());
+            
+            // Setup GetAudioModelsAsync to return empty list by default
+            _comfyUIServiceMock.Setup(x => x.GetAudioModelsAsync())
+                .ReturnsAsync(new List<string>());
 
             // Register services
             Services.AddSingleton(_comfyUIServiceMock.Object);

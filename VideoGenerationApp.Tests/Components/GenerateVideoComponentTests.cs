@@ -28,6 +28,8 @@ namespace VideoGenerationApp.Tests.Components
             // Setup default mock behaviors
             _queueServiceMock.Setup(x => x.GetAllTasksAsync())
                 .ReturnsAsync(new List<GenerationTask>());
+            _queueServiceMock.Setup(x => x.GetVideoModelsAsync())
+                .ReturnsAsync(new List<string>());
 
             Services.AddSingleton(_queueServiceMock.Object);
             Services.AddSingleton(_outputState);
