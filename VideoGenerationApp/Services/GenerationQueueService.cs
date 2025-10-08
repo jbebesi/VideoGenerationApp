@@ -653,6 +653,96 @@ namespace VideoGenerationApp.Services
                 return new List<string>();
             }
         }
+
+        /// <summary>
+        /// Gets available CLIP (text encoder) models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetCLIPModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
+                return await audioService.GetCLIPModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting CLIP models from ComfyUI");
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Gets available VAE models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetVAEModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
+                return await audioService.GetVAEModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting VAE models from ComfyUI");
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Gets available UNET (diffusion model) models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetUNETModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var videoService = scope.ServiceProvider.GetRequiredService<ComfyUIVideoService>();
+                return await videoService.GetUNETModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting UNET models from ComfyUI");
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Gets available Audio Encoder models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetAudioEncoderModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var audioService = scope.ServiceProvider.GetRequiredService<ComfyUIAudioService>();
+                return await audioService.GetAudioEncoderModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting Audio Encoder models from ComfyUI");
+                return new List<string>();
+            }
+        }
+
+        /// <summary>
+        /// Gets available LoRA models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetLoRAModelsAsync()
+        {
+            try
+            {
+                using var scope = _serviceScopeFactory.CreateScope();
+                var videoService = scope.ServiceProvider.GetRequiredService<ComfyUIVideoService>();
+                return await videoService.GetLoRAModelsAsync();
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error getting LoRA models from ComfyUI");
+                return new List<string>();
+            }
+        }
         
         public void Dispose()
         {

@@ -188,6 +188,46 @@ namespace VideoGenerationApp.Services
                 .ToList();
         }
 
+        /// <summary>
+        /// Gets available CLIP (text encoder) models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetCLIPModelsAsync()
+        {
+            return await GetAvailableModelsAsync("CLIPLoader");
+        }
+
+        /// <summary>
+        /// Gets available VAE models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetVAEModelsAsync()
+        {
+            return await GetAvailableModelsAsync("VAELoader");
+        }
+
+        /// <summary>
+        /// Gets available UNET (diffusion model) models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetUNETModelsAsync()
+        {
+            return await GetAvailableModelsAsync("UNETLoader");
+        }
+
+        /// <summary>
+        /// Gets available Audio Encoder models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetAudioEncoderModelsAsync()
+        {
+            return await GetAvailableModelsAsync("AudioEncoderLoader");
+        }
+
+        /// <summary>
+        /// Gets available LoRA models from ComfyUI
+        /// </summary>
+        public virtual async Task<List<string>> GetLoRAModelsAsync()
+        {
+            return await GetAvailableModelsAsync("LoraLoaderModelOnly");
+        }
+
 
 
         /// <summary>
