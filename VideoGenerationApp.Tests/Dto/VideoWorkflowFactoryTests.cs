@@ -89,8 +89,9 @@ namespace VideoGenerationApp.Tests.Dto
             // motionBucketId should be in range based on motion intensity
             var motionBucketId = (int)svdNode.widgets_values[3];
             Assert.InRange(motionBucketId, 127, 255); // 0.8 intensity maps to higher motion
-            Assert.Equal(config.AugmentationLevel, svdNode.widgets_values[4]);
-            Assert.Equal(config.Seed, svdNode.widgets_values[5]);
+            Assert.Equal(config.Fps, svdNode.widgets_values[4]);
+            Assert.Equal(config.AugmentationLevel, svdNode.widgets_values[5]);
+            Assert.Equal(config.Seed, svdNode.widgets_values[6]);
         }
 
         [Fact]

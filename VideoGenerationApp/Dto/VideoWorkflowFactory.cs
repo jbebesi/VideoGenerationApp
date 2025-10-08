@@ -182,6 +182,7 @@ namespace VideoGenerationApp.Dto
                     config.Height,
                     numFrames,
                     motionBucketId,
+                    config.Fps,
                     config.AugmentationLevel,
                     config.Seed == -1 ? Random.Shared.NextInt64(0, long.MaxValue) : config.Seed
                 }

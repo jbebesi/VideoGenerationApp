@@ -187,15 +187,16 @@ namespace VideoGenerationApp.Services
                         break;
 
                     case "SVD_img2vid_Conditioning":
-                        // SVD_img2vid_Conditioning widgets: [width, height, video_frames, motion_bucket_id, augmentation_level, seed]
-                        if (node.widgets_values.Length >= 6)
+                        // SVD_img2vid_Conditioning widgets: [width, height, video_frames, motion_bucket_id, fps, augmentation_level, seed]
+                        if (node.widgets_values.Length >= 7)
                         {
                             inputs["width"] = node.widgets_values[0];
                             inputs["height"] = node.widgets_values[1];
                             inputs["video_frames"] = node.widgets_values[2];
                             inputs["motion_bucket_id"] = node.widgets_values[3];
-                            inputs["augmentation_level"] = node.widgets_values[4];
-                            inputs["seed"] = node.widgets_values[5];
+                            inputs["fps"] = node.widgets_values[4];
+                            inputs["augmentation_level"] = node.widgets_values[5];
+                            inputs["seed"] = node.widgets_values[6];
                         }
                         break;
 
