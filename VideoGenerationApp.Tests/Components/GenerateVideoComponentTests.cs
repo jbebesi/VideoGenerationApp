@@ -267,5 +267,45 @@ namespace VideoGenerationApp.Tests.Components
             var textarea = component.Find("textarea#textPrompt");
             Assert.NotNull(textarea);
         }
+
+        [Fact]
+        public void Component_UpdatesVideoDimensions_WhenImageIsSelected()
+        {
+            // Arrange
+            var imageTask = new GenerationTask
+            {
+                Id = "image-1",
+                Name = "Test Image",
+                Type = GenerationType.Image,
+                Status = GenerationStatus.Completed,
+                GeneratedFilePath = "/images/test.png",
+                ImageConfig = new ImageWorkflowConfig 
+                { 
+                    Width = 512, 
+                    Height = 768 
+                }
+            };
+
+            _queueServiceMock.Setup(x => x.GetAllTasksAsync())
+                .ReturnsAsync(new List<GenerationTask> { imageTask });
+
+            var component = RenderComponent<GenerateVideo>();
+
+            // Act - Select the image
+            var imageSelect = component.Find("select#imageFile");
+            imageSelect.Change("/images/test.png");
+
+            // Assert - The video dimensions should match the image dimensions
+            var widthInput = component.Find("input#width");
+            var heightInput = component.Find("input#height");
+            
+            // The bound value should be updated in the component
+            Assert.Contains("512", widthInput.GetAttribute("value") ?? "");
+            Assert.Contains("768", heightInput.GetAttribute("value") ?? "");
+            
+            // Helper text should be shown
+            Assert.Contains("Matches selected image width", component.Markup);
+            Assert.Contains("Matches selected image height", component.Markup);
+        }
     }
 }
