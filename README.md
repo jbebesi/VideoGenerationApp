@@ -34,9 +34,11 @@ This will install:
 - Ollama (AI model runtime)
 - Python 3.10+ (for ComfyUI)
 - ComfyUI (Stable Diffusion workflows)
-- Required AI models
+- Required AI models (including SVD for video generation)
 
 For more details, see [scripts/README.md](scripts/README.md).
+
+**Note:** Video generation requires the Stable Video Diffusion (SVD) model. See [VIDEO_GENERATION_SETUP.md](VIDEO_GENERATION_SETUP.md) for detailed setup instructions and troubleshooting.
 
 ## Development
 

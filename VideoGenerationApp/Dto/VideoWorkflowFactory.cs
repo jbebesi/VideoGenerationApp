@@ -41,8 +41,8 @@ namespace VideoGenerationApp.Dto
                     new object[] { 6, 2, 0, 4, 2, "IMAGE" },
                     // VAEEncode -> SVDSampler
                     new object[] { 7, 3, 0, 4, 3, "LATENT" },
-                    // SVDSampler -> VAEDecode
-                    new object[] { 8, 4, 0, 5, 0, "LATENT" },
+                    // SVDSampler output 2 (latent) -> VAEDecode
+                    new object[] { 8, 4, 2, 5, 0, "LATENT" },
                     // VAEDecode -> VideoSave
                     new object[] { 9, 5, 0, 6, 0, "IMAGE" }
                 },
@@ -182,7 +182,7 @@ namespace VideoGenerationApp.Dto
                     config.Height,
                     numFrames,
                     motionBucketId,
-                    config.CFGScale,
+                    config.AugmentationLevel,
                     config.Seed == -1 ? Random.Shared.NextInt64(0, long.MaxValue) : config.Seed
                 }
             };
