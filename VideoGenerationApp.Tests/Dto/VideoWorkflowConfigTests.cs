@@ -72,5 +72,17 @@ namespace VideoGenerationApp.Tests.Dto
             Assert.Null(config.AudioFilePath);
             Assert.Null(config.ImageFilePath);
         }
+
+        [Fact]
+        public void VideoWorkflowConfig_HasSameDefaultDimensions_AsImageWorkflowConfig()
+        {
+            // Arrange & Act
+            var videoConfig = new VideoWorkflowConfig();
+            var imageConfig = new ImageWorkflowConfig();
+
+            // Assert - Video and Image should have the same default dimensions
+            Assert.Equal(imageConfig.Width, videoConfig.Width);
+            Assert.Equal(imageConfig.Height, videoConfig.Height);
+        }
     }
 }
