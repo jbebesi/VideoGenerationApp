@@ -52,6 +52,24 @@ If you prefer to install manually:
 
 ## Troubleshooting
 
+### Error: "Invalid image file"
+
+This error occurs when ComfyUI cannot find the specified input image. To fix this:
+
+1. **Place your image in ComfyUI's input folder:**
+   ```bash
+   cp your_image.png ~/ComfyUI/input/
+   ```
+
+2. **Ensure the image file exists:**
+   - The application extracts only the filename from the provided path
+   - ComfyUI looks for images in its `input` directory
+   - Example: If you provide `/path/to/my_image.png`, ComfyUI will look for `my_image.png` in `~/ComfyUI/input/`
+
+3. **Supported image formats:**
+   - PNG, JPEG, JPG, WebP
+   - Maximum recommended size: 4096x4096 pixels
+
 ### Error: "svd_xt.safetensors not in available models"
 
 This error occurs when the SVD model has not been installed. Follow the installation steps above.
@@ -69,6 +87,13 @@ This is a workflow structure error that should be fixed in the latest version. I
 1. Pull the latest code from the repository
 2. Ensure you're using version with the workflow fixes
 3. Clear any cached workflows
+
+### Error: "Required input is missing: fps"
+
+This error has been fixed in the latest version. The SVD_img2vid_Conditioning node now correctly includes the FPS parameter. To resolve:
+1. Pull the latest code from the repository
+2. Rebuild the application: `dotnet build`
+3. Try video generation again
 
 ## Model Information
 
