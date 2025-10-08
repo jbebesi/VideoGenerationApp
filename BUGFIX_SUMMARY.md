@@ -1,5 +1,37 @@
 # Video Generation Bug Fixes Summary
 
+## Latest Update: Added FPS Parameter
+
+**Issue**: ComfyUI's SVD_img2vid_Conditioning node requires an `fps` parameter that was not being provided.
+
+**Error Message**:
+```
+SVD_img2vid_Conditioning 4:
+  - Required input is missing: fps
+```
+
+**Fix**: Added `fps` parameter to the SVD_img2vid_Conditioning node's widget values.
+
+**Changes Made**:
+1. Updated `VideoWorkflowFactory.cs` - Added `config.Fps` to widgets_values array at index 4
+2. Updated `ComfyUIVideoService.cs` - Added `fps` to inputs mapping for SVD_img2vid_Conditioning
+3. Updated `VideoWorkflowFactoryTests.cs` - Updated test assertions to check fps parameter at correct index
+4. Updated `BUGFIX_SUMMARY.md` - Added fps to parameter documentation
+
+**Widget Values Order** (after fix):
+```csharp
+widgets_values = new object[] 
+{ 
+    config.Width,              // index 0
+    config.Height,             // index 1
+    numFrames,                 // index 2
+    motionBucketId,            // index 3
+    config.Fps,                // index 4 (NEW)
+    config.AugmentationLevel,  // index 5 (was 4)
+    config.Seed                // index 6 (was 5)
+}
+```
+
 ## Issues Identified from Error Logs
 
 ### Error 1: Model Not Available
@@ -172,6 +204,7 @@ This node is part of the Stable Video Diffusion workflow and creates conditionin
 - width, height: Video dimensions
 - video_frames: Total frames to generate
 - motion_bucket_id: Controls motion amount (127-254)
+- fps: Frames per second for video generation
 - augmentation_level: Image conditioning strength (0.0-0.3)
 - seed: Random seed for generation
 
