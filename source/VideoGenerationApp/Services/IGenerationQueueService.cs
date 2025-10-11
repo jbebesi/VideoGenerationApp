@@ -9,6 +9,10 @@ namespace VideoGenerationApp.Services
         Task StartAsync(CancellationToken cancellationToken);
         Task StopAsync(CancellationToken cancellationToken);
         
+        // New method for the refactored approach
+        Task<string> QueueTaskAsync(GenerationTaskBase task);
+        
+        // Legacy methods for backward compatibility
         Task<string> QueueGenerationAsync(string name, AudioWorkflowConfig config, string? notes = null);
         Task<string> QueueImageGenerationAsync(string name, ImageWorkflowConfig config, string? notes = null);
         Task<string> QueueVideoGenerationAsync(string name, VideoWorkflowConfig config, string? notes = null);

@@ -2,6 +2,7 @@ using System.Text.Json;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Configuration;
 using Microsoft.Extensions.Options;
+using ComfyUI.Client.Services;
 
 namespace VideoGenerationApp.Services
 {
@@ -13,11 +14,11 @@ namespace VideoGenerationApp.Services
         private ImageWorkflowConfig _workflowConfig = new();
 
         public ComfyUIImageService(
-            HttpClient httpClient, 
+            IComfyUIApiClient comfyUIClient, 
             ILogger<ComfyUIImageService> logger, 
             IWebHostEnvironment environment,
             IOptions<ComfyUISettings> settings) 
-            : base(httpClient, logger, environment, settings)
+            : base(comfyUIClient, logger, environment, settings)
         {
         }
 
@@ -363,15 +364,15 @@ namespace VideoGenerationApp.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync("/queue");
-                if (!response.IsSuccessStatusCode)
+                var queueResponse = await _comfyUIClient.GetQueueAsync();
+                
+                var queueStatus = new ComfyUIQueueStatus
                 {
-                    _logger.LogWarning("Failed to get queue status: {StatusCode}", response.StatusCode);
-                    return null;
-                }
+                    queue = queueResponse.QueuePending?.Select(q => new ComfyUIQueueItem { prompt_id = q.PromptId }).ToList() ?? new List<ComfyUIQueueItem>(),
+                    exec = queueResponse.QueueRunning?.Select(q => new ComfyUIQueueItem { prompt_id = q.PromptId }).ToList() ?? new List<ComfyUIQueueItem>()
+                };
 
-                var queueJson = await response.Content.ReadAsStringAsync();
-                return JsonSerializer.Deserialize<ComfyUIQueueStatus>(queueJson);
+                return queueStatus;
             }
             catch (Exception ex)
             {

@@ -2,7 +2,9 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
 @rendermode InteractiveServer
 @using VideoGenerationApp.Services
+@using VideoGenerationApp.Services.Generation
 @using VideoGenerationApp.Dto
+@inject VideoGenerationWorkflow VideoWorkflow
 @inject IGenerationQueueService QueueService
 @inject OllamaOutputState OutputState
 @inject ILogger<GenerateVideo> Logger

@@ -2,6 +2,7 @@ using System.Text.Json;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Configuration;
 using Microsoft.Extensions.Options;
+using ComfyUI.Client.Services;
 
 namespace VideoGenerationApp.Services
 {
@@ -13,11 +14,11 @@ namespace VideoGenerationApp.Services
         private VideoWorkflowConfig _workflowConfig = new();
 
         public ComfyUIVideoService(
-            HttpClient httpClient, 
+            IComfyUIApiClient comfyUIClient, 
             ILogger<ComfyUIVideoService> logger, 
             IWebHostEnvironment environment,
             IOptions<ComfyUISettings> settings) 
-            : base(httpClient, logger, environment, settings)
+            : base(comfyUIClient, logger, environment, settings)
         {
         }
 
@@ -111,7 +112,15 @@ namespace VideoGenerationApp.Services
                 _logger.LogInformation("Starting video generation with ComfyUI");
                 SetWorkflowConfig(config);
                 
-                var workflow = VideoWorkflowFactory.CreateWorkflow(config);
+                // Copy input files to ComfyUI input directory before generating video
+                var preparedConfig = await PrepareInputFilesForComfyUIAsync(config);
+                if (preparedConfig == null)
+                {
+                    _logger.LogError("Failed to prepare input files for ComfyUI");
+                    return null;
+                }
+                
+                var workflow = VideoWorkflowFactory.CreateWorkflow(preparedConfig);
                 var workflowDict = ConvertWorkflowToComfyUIFormat(workflow);
                 
                 var promptId = await SubmitWorkflowAsync(workflowDict);
@@ -162,7 +171,7 @@ namespace VideoGenerationApp.Services
                         {
                             var sourceNodeId = linkArray[1];
                             var sourceOutputIndex = linkArray[2];
-                            inputs[input.name] = new object[] { sourceNodeId.ToString(), sourceOutputIndex };
+                            inputs[input.name] = new object[] { sourceNodeId?.ToString() ?? "", sourceOutputIndex };
                         }
                     }
                 }
@@ -294,25 +303,186 @@ namespace VideoGenerationApp.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync("/queue");
+                var queueResponse = await _comfyUIClient.GetQueueAsync();
                 
-                if (!response.IsSuccessStatusCode)
+                var queueStatus = new ComfyUIQueueStatus
                 {
-                    _logger.LogWarning("Failed to get queue status: {StatusCode}", response.StatusCode);
-                    return null;
-                }
-
-                var json = await response.Content.ReadAsStringAsync();
-                var queueStatus = JsonSerializer.Deserialize<ComfyUIQueueStatus>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
+                    queue = queueResponse.QueuePending?.Select(q => new ComfyUIQueueItem { prompt_id = q.PromptId }).ToList() ?? new List<ComfyUIQueueItem>(),
+                    exec = queueResponse.QueueRunning?.Select(q => new ComfyUIQueueItem { prompt_id = q.PromptId }).ToList() ?? new List<ComfyUIQueueItem>()
+                };
 
                 return queueStatus;
             }
             catch (Exception ex)
             {
                 _logger.LogError(ex, "Error getting queue status");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Prepares input files by copying them to ComfyUI's input directory
+        /// </summary>
+        private async Task<VideoWorkflowConfig?> PrepareInputFilesForComfyUIAsync(VideoWorkflowConfig config)
+        {
+            try
+            {
+                _logger.LogInformation("Preparing input files for ComfyUI video generation");
+                
+                // Create a copy of the config to modify
+                var preparedConfig = new VideoWorkflowConfig
+                {
+                    AudioFilePath = config.AudioFilePath,
+                    ImageFilePath = config.ImageFilePath,
+                    TextPrompt = config.TextPrompt,
+                    DurationSeconds = config.DurationSeconds,
+                    Width = config.Width,
+                    Height = config.Height,
+                    Fps = config.Fps,
+                    AnimationStyle = config.AnimationStyle,
+                    MotionIntensity = config.MotionIntensity,
+                    CheckpointName = config.CheckpointName,
+                    Seed = config.Seed,
+                    Steps = config.Steps,
+                    CFGScale = config.CFGScale,
+                    AugmentationLevel = config.AugmentationLevel,
+                    OutputFilename = config.OutputFilename,
+                    OutputFormat = config.OutputFormat,
+                    Quality = config.Quality
+                };
+
+                // Get ComfyUI input directory path
+                var comfyUIInputPath = GetComfyUIInputDirectory();
+                if (string.IsNullOrEmpty(comfyUIInputPath))
+                {
+                    _logger.LogError("Could not determine ComfyUI input directory");
+                    return null;
+                }
+
+                _logger.LogInformation("ComfyUI input directory: {InputPath}", comfyUIInputPath);
+
+                // Copy image file if provided
+                if (!string.IsNullOrEmpty(config.ImageFilePath))
+                {
+                    var copiedImagePath = await CopyFileToComfyUIInputAsync(config.ImageFilePath, comfyUIInputPath, "image");
+                    if (copiedImagePath != null)
+                    {
+                        preparedConfig.ImageFilePath = copiedImagePath;
+                        _logger.LogInformation("Image file copied to ComfyUI input: {ImagePath}", copiedImagePath);
+                    }
+                    else
+                    {
+                        _logger.LogError("Failed to copy image file to ComfyUI input");
+                        return null;
+                    }
+                }
+
+                // Copy audio file if provided
+                if (!string.IsNullOrEmpty(config.AudioFilePath))
+                {
+                    var copiedAudioPath = await CopyFileToComfyUIInputAsync(config.AudioFilePath, comfyUIInputPath, "audio");
+                    if (copiedAudioPath != null)
+                    {
+                        preparedConfig.AudioFilePath = copiedAudioPath;
+                        _logger.LogInformation("Audio file copied to ComfyUI input: {AudioPath}", copiedAudioPath);
+                    }
+                    else
+                    {
+                        _logger.LogError("Failed to copy audio file to ComfyUI input");
+                        return null;
+                    }
+                }
+
+                _logger.LogInformation("Successfully prepared input files for ComfyUI");
+                return preparedConfig;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error preparing input files for ComfyUI");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Gets the ComfyUI input directory path
+        /// </summary>
+        private string? GetComfyUIInputDirectory()
+        {
+            try
+            {
+                // Try common ComfyUI installation paths
+                var possiblePaths = new[]
+                {
+                    @"C:\ComfyUI\input",
+                    @"C:\Users\janos\ComfyUI\input",
+                    Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "ComfyUI", "input"),
+                    @".\ComfyUI\input",
+                    @"..\ComfyUI\input"
+                };
+
+                foreach (var path in possiblePaths)
+                {
+                    if (Directory.Exists(path))
+                    {
+                        _logger.LogDebug("Found ComfyUI input directory: {Path}", path);
+                        return path;
+                    }
+                }
+
+                // If no standard path found, try to create one relative to the application
+                var webRootPath = _environment.WebRootPath;
+                var fallbackPath = Path.Combine(Path.GetDirectoryName(webRootPath) ?? "", "ComfyUI", "input");
+                Directory.CreateDirectory(fallbackPath);
+                
+                _logger.LogInformation("Created ComfyUI input directory: {Path}", fallbackPath);
+                return fallbackPath;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error determining ComfyUI input directory");
+                return null;
+            }
+        }
+
+        /// <summary>
+        /// Copies a file to ComfyUI input directory with proper naming
+        /// </summary>
+        private async Task<string?> CopyFileToComfyUIInputAsync(string sourceFilePath, string comfyUIInputPath, string fileType)
+        {
+            try
+            {
+                // Convert web path to physical path if needed
+                var physicalSourcePath = sourceFilePath;
+                if (sourceFilePath.StartsWith("/"))
+                {
+                    physicalSourcePath = Path.Combine(_environment.WebRootPath, sourceFilePath.TrimStart('/'));
+                }
+
+                if (!File.Exists(physicalSourcePath))
+                {
+                    _logger.LogError("Source file does not exist: {SourcePath}", physicalSourcePath);
+                    return null;
+                }
+
+                // Generate a unique filename for ComfyUI
+                var sourceFileName = Path.GetFileName(physicalSourcePath);
+                var fileExtension = Path.GetExtension(sourceFileName);
+                var timestamp = DateTime.UtcNow.ToString("yyyyMMdd_HHmmss");
+                var uniqueFileName = $"{fileType}_{timestamp}_{Guid.NewGuid():N}{fileExtension}";
+                
+                var destinationPath = Path.Combine(comfyUIInputPath, uniqueFileName);
+
+                _logger.LogInformation("Copying {FileType} file: {Source} -> {Destination}", fileType, physicalSourcePath, destinationPath);
+
+                // Copy the file
+                await Task.Run(() => File.Copy(physicalSourcePath, destinationPath, overwrite: true));
+
+                // Return just the filename (not the full path) for ComfyUI workflows
+                return uniqueFileName;
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error copying {FileType} file to ComfyUI input", fileType);
                 return null;
             }
         }

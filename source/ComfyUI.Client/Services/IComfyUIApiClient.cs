@@ -3,6 +3,7 @@ using ComfyUI.Client.Models.Responses;
 
 namespace ComfyUI.Client.Services;
 
+
 /// <summary>
 /// Interface for ComfyUI API client
 /// </summary>

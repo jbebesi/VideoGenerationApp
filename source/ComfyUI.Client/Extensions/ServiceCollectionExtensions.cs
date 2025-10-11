@@ -27,8 +27,6 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(options.Value.TimeoutSeconds);
         });
 
-        services.AddScoped<IComfyUIApiClient, ComfyUIApiClient>();
-        
         return services;
     }
 
@@ -55,8 +53,6 @@ public static class ServiceCollectionExtensions
             client.Timeout = TimeSpan.FromSeconds(options.TimeoutSeconds);
         });
 
-        services.AddScoped<IComfyUIApiClient, ComfyUIApiClient>();
-        
         return services;
     }
 }

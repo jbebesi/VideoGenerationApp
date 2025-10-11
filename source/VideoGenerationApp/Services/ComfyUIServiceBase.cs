@@ -4,6 +4,10 @@ using System.Linq;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Configuration;
 using Microsoft.Extensions.Options;
+using ComfyUI.Client.Services;
+using ComfyUI.Client.Models.Requests;
+using ComfyUI.Client.Models.Responses;
+using FluentValidation;
 
 namespace VideoGenerationApp.Services
 {
@@ -13,18 +17,18 @@ namespace VideoGenerationApp.Services
     /// </summary>
     public abstract class ComfyUIServiceBase : IDisposable
     {
-        protected readonly HttpClient _httpClient;
+        protected readonly IComfyUIApiClient _comfyUIClient;
         protected readonly ILogger _logger;
         protected readonly IWebHostEnvironment _environment;
         protected readonly ComfyUISettings _settings;
 
         protected ComfyUIServiceBase(
-            HttpClient httpClient, 
+            IComfyUIApiClient comfyUIClient, 
             ILogger logger, 
             IWebHostEnvironment environment,
             IOptions<ComfyUISettings> settings)
         {
-            _httpClient = httpClient;
+            _comfyUIClient = comfyUIClient;
             _logger = logger;
             _environment = environment;
             _settings = settings?.Value ?? new ComfyUISettings 
@@ -33,13 +37,6 @@ namespace VideoGenerationApp.Services
                 TimeoutMinutes = 10,
                 PollIntervalSeconds = 2
             };
-            
-            // Configure HttpClient for ComfyUI
-            if (!string.IsNullOrEmpty(_settings.ApiUrl))
-            {
-                _httpClient.BaseAddress = new Uri(_settings.ApiUrl);
-            }
-            _httpClient.Timeout = TimeSpan.FromMinutes(_settings.TimeoutMinutes);
         }
 
 
@@ -51,8 +48,8 @@ namespace VideoGenerationApp.Services
         {
             try
             {
-                var response = await _httpClient.GetAsync("/system_stats");
-                return response.IsSuccessStatusCode;
+                await _comfyUIClient.GetSystemStatsAsync();
+                return true;
             }
             catch
             {
@@ -71,25 +68,20 @@ namespace VideoGenerationApp.Services
             {
                 _logger.LogInformation("Fetching available models for node type: {NodeType}", nodeType);
                 
-                var response = await _httpClient.GetAsync("/object_info");
-                if (!response.IsSuccessStatusCode)
-                {
-                    _logger.LogWarning("Failed to fetch object info from ComfyUI: {StatusCode}", response.StatusCode);
-                    return new List<string>();
-                }
-
-                var json = await response.Content.ReadAsStringAsync();
-                using var document = JsonDocument.Parse(json);
+                // Get all object info from ComfyUI
+                var objectInfo = await _comfyUIClient.GetObjectInfoAsync();
                 
                 // Navigate to the specific node type in the object_info response
-                if (!document.RootElement.TryGetProperty(nodeType, out var nodeInfo))
+                if (!objectInfo.TryGetValue(nodeType, out var nodeInfoValue))
                 {
                     _logger.LogWarning("Node type {NodeType} not found in ComfyUI object_info", nodeType);
                     return new List<string>();
                 }
 
+                var nodeInfoElement = JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(nodeInfoValue));
+
                 // Get the input types for this node
-                if (!nodeInfo.TryGetProperty("input", out var inputInfo))
+                if (!nodeInfoElement.TryGetProperty("input", out var inputInfo))
                 {
                     _logger.LogWarning("No input info found for node type {NodeType}", nodeType);
                     return new List<string>();
@@ -237,66 +229,78 @@ namespace VideoGenerationApp.Services
         {
             try
             {
-                var request = new ComfyUIWorkflowRequest
+                _logger.LogInformation("Starting workflow submission process");
+
+                // Convert workflowObject to Dictionary<string, object>
+                Dictionary<string, object> promptDict;
+                if (workflowObject is Dictionary<string, object> dict)
                 {
-                    prompt = workflowObject,
-                    client_id = Guid.NewGuid().ToString()
+                    promptDict = dict;
+                    _logger.LogDebug("Workflow object is already a Dictionary<string, object>");
+                }
+                else
+                {
+                    _logger.LogDebug("Converting workflow object to Dictionary<string, object>");
+                    // Try to serialize and deserialize to convert to Dictionary<string, object>
+                    var json = JsonSerializer.Serialize(workflowObject);
+                    _logger.LogDebug("Serialized workflow to JSON ({Length} characters)", json.Length);
+                    promptDict = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
+                    _logger.LogDebug("Deserialized JSON to Dictionary with {Count} entries", promptDict.Count);
+                }
+
+                if (promptDict.Count == 0)
+                {
+                    _logger.LogError("Workflow dictionary is empty - cannot submit workflow");
+                    return null;
+                }
+
+                var request = new PromptRequest
+                {
+                    Prompt = promptDict,
+                    ClientId = Guid.NewGuid().ToString()
                 };
 
-                var json = JsonSerializer.Serialize(request);
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-
                 _logger.LogInformation("Submitting workflow to ComfyUI at {ApiUrl}", _settings.ApiUrl);
-                var response = await _httpClient.PostAsync("/prompt", content);
-                var responseJson = await response.Content.ReadAsStringAsync();
+                _logger.LogDebug("Workflow prompt contains {NodeCount} nodes", promptDict.Count);
+                _logger.LogDebug("Request ClientId: {ClientId}", request.ClientId);
+                
+                _logger.LogDebug("Calling ComfyUI client SubmitPromptAsync...");
+                var response = await _comfyUIClient.SubmitPromptAsync(request);
+                _logger.LogDebug("Received response from ComfyUI client");
 
-                if (!response.IsSuccessStatusCode)
+                if (response == null)
                 {
-                    _logger.LogError("ComfyUI API request failed with status {StatusCode}. Response: {Content}", response.StatusCode, responseJson);
-                    
-                    // Try to parse error details if possible
-                    try
-                    {
-                        var errorResponse = JsonSerializer.Deserialize<ComfyUIWorkflowResponse>(responseJson);
-                        if (errorResponse?.error != null)
-                        {
-                            _logger.LogError("ComfyUI workflow error details - Type: {ErrorType}, Message: {ErrorMessage}", 
-                                errorResponse.error.type, errorResponse.error.message);
-                        }
-                        if (errorResponse?.node_errors != null && HasNodeErrors(errorResponse.node_errors.Value))
-                        {
-                            _logger.LogError("ComfyUI workflow has node errors: {NodeErrors}", errorResponse.node_errors.Value);
-                        }
-                    }
-                    catch (JsonException)
-                    {
-                        // If we can't parse the error response, just log the raw content
-                        _logger.LogError("Failed to parse ComfyUI error response. Raw response logged above.");
-                    }
-                    
+                    _logger.LogError("ComfyUI client returned null response");
                     return null;
                 }
 
-                var workflowResponse = JsonSerializer.Deserialize<ComfyUIWorkflowResponse>(responseJson);
+                _logger.LogDebug("Response PromptId: {PromptId}", response.PromptId ?? "null");
+                _logger.LogDebug("Response NodeErrors count: {ErrorCount}", response.NodeErrors?.Count ?? 0);
 
-                // Check if there are validation errors even with a 200 response
-                if (workflowResponse?.error != null || (workflowResponse?.node_errors != null && HasNodeErrors(workflowResponse.node_errors.Value)))
+                if (response.NodeErrors?.Any() == true)
                 {
-                    _logger.LogError("ComfyUI workflow validation failed despite successful HTTP response");
-                    if (workflowResponse!.error != null)
-                    {
-                        _logger.LogError("Validation error - Type: {ErrorType}, Message: {ErrorMessage}", 
-                            workflowResponse.error.type, workflowResponse.error.message);
-                    }
-                    if (workflowResponse.node_errors != null && HasNodeErrors(workflowResponse.node_errors.Value))
-                    {
-                        _logger.LogError("Node validation errors: {NodeErrors}", workflowResponse.node_errors.Value);
-                    }
+                    _logger.LogError("ComfyUI workflow has node errors: {NodeErrors}", JsonSerializer.Serialize(response.NodeErrors));
                     return null;
                 }
 
-                _logger.LogInformation("Workflow submitted successfully with prompt ID: {PromptId}", workflowResponse?.prompt_id);
-                return workflowResponse?.prompt_id;
+                if (string.IsNullOrEmpty(response.PromptId))
+                {
+                    _logger.LogError("ComfyUI response does not contain a valid PromptId");
+                    return null;
+                }
+
+                _logger.LogInformation("Workflow submitted successfully with prompt ID: {PromptId}", response.PromptId);
+                return response.PromptId;
+            }
+            catch (ValidationException ex)
+            {
+                _logger.LogError(ex, "Workflow validation failed: {ValidationErrors}", ex.Message);
+                return null;
+            }
+            catch (InvalidCastException ex)
+            {
+                _logger.LogError(ex, "Failed to convert workflow object to Dictionary<string, object>");
+                return null;
             }
             catch (HttpRequestException ex)
             {
@@ -305,8 +309,7 @@ namespace VideoGenerationApp.Services
             }
             catch (TaskCanceledException ex)
             {
-                _logger.LogError(ex, "Timeout submitting workflow to ComfyUI at {ApiUrl}. The request took longer than {Timeout} minutes.", 
-                    _settings.ApiUrl, _settings.TimeoutMinutes);
+                _logger.LogError(ex, "Timeout submitting workflow to ComfyUI at {ApiUrl}. The request took longer than expected.", _settings.ApiUrl);
                 return null;
             }
             catch (Exception ex)
@@ -339,25 +342,16 @@ namespace VideoGenerationApp.Services
                     _logger.LogDebug("Poll #{PollCount} for prompt {PromptId} (elapsed: {Elapsed})", 
                         pollCount, promptId, elapsed.ToString(@"hh\:mm\:ss"));
 
-                    var queueResponse = await _httpClient.GetAsync("/queue");
-                    if (!queueResponse.IsSuccessStatusCode)
-                    {
-                        _logger.LogWarning("Failed to get queue status: {StatusCode}", queueResponse.StatusCode);
-                        await Task.Delay(pollInterval);
-                        continue;
-                    }
-
-                    var queueJson = await queueResponse.Content.ReadAsStringAsync();
-                    var queueStatus = JsonSerializer.Deserialize<ComfyUIQueueStatus>(queueJson);
-
+                    var queueResponse = await _comfyUIClient.GetQueueAsync();
+                    
                     // Log queue status for debugging
-                    var queueCount = queueStatus?.queue?.Count ?? 0;
-                    var execCount = queueStatus?.exec?.Count ?? 0;
+                    var queueCount = queueResponse.QueuePending?.Count ?? 0;
+                    var execCount = queueResponse.QueueRunning?.Count ?? 0;
                     _logger.LogDebug("Queue status: {QueueCount} queued, {ExecCount} executing", queueCount, execCount);
 
                     // Check if our prompt is still in queue or executing
-                    var isInQueue = queueStatus?.queue?.Any(q => q.prompt_id == promptId) == true;
-                    var isExecuting = queueStatus?.exec?.Any(q => q.prompt_id == promptId) == true;
+                    var isInQueue = queueResponse.QueuePending?.Any(q => q.PromptId == promptId) == true;
+                    var isExecuting = queueResponse.QueueRunning?.Any(q => q.PromptId == promptId) == true;
 
                     if (isInQueue)
                     {
@@ -371,37 +365,30 @@ namespace VideoGenerationApp.Services
                     {
                         // Not in queue or executing, but let's double-check by looking at history
                         // to ensure the task actually completed successfully
-                        var historyResponse = await _httpClient.GetAsync($"/history/{promptId}");
-                        if (historyResponse.IsSuccessStatusCode)
+                        var historyResponse = await _comfyUIClient.GetHistoryAsync(promptId);
+                        
+                        if (historyResponse.ContainsKey(promptId))
                         {
-                            var historyJson = await historyResponse.Content.ReadAsStringAsync();
-                            using var historyDoc = JsonDocument.Parse(historyJson);
+                            var promptHistoryElement = JsonSerializer.Deserialize<JsonElement>(JsonSerializer.Serialize(historyResponse[promptId]));
                             
-                            if (historyDoc.RootElement.TryGetProperty(promptId, out var promptHistory))
+                            // Check if there are outputs, indicating successful completion
+                            if (promptHistoryElement.TryGetProperty("outputs", out var outputs) && 
+                                outputs.EnumerateObject().Any())
                             {
-                                // Check if there are outputs, indicating successful completion
-                                if (promptHistory.TryGetProperty("outputs", out var outputs) && 
-                                    outputs.EnumerateObject().Any())
-                                {
-                                    _logger.LogInformation("Workflow completed successfully for prompt ID: {PromptId} after {Elapsed} (polls: {PollCount})", 
-                                        promptId, elapsed.ToString(@"hh\:mm\:ss"), pollCount);
-                                    return true;
-                                }
-                                else
-                                {
-                                    _logger.LogDebug("Prompt {PromptId} finished but outputs not ready yet, waiting for file generation to complete", promptId);
-                                    // Task finished but outputs not ready yet - wait a bit longer for file generation
-                                    // This can happen when the task completes but files are still being written
-                                }
+                                _logger.LogInformation("Workflow completed successfully for prompt ID: {PromptId} after {Elapsed} (polls: {PollCount})", 
+                                    promptId, elapsed.ToString(@"hh\:mm\:ss"), pollCount);
+                                return true;
                             }
                             else
                             {
-                                _logger.LogDebug("Prompt {PromptId} not found in history yet, may still be processing", promptId);
+                                _logger.LogDebug("Prompt {PromptId} finished but outputs not ready yet, waiting for file generation to complete", promptId);
+                                // Task finished but outputs not ready yet - wait a bit longer for file generation
+                                // This can happen when the task completes but files are still being written
                             }
                         }
                         else
                         {
-                            _logger.LogDebug("Could not fetch history for prompt {PromptId}, status: {StatusCode}", promptId, historyResponse.StatusCode);
+                            _logger.LogDebug("Prompt {PromptId} not found in history yet, may still be processing", promptId);
                         }
                     }
 
@@ -443,11 +430,10 @@ namespace VideoGenerationApp.Services
                 for (int attempt = 1; attempt <= maxRetries; attempt++)
                 {
                     // Get history for this prompt
-                    var historyResponse = await _httpClient.GetAsync($"/history/{promptId}");
-                    if (!historyResponse.IsSuccessStatusCode)
+                    var historyResponse = await _comfyUIClient.GetHistoryAsync(promptId);
+                    if (!historyResponse.ContainsKey(promptId))
                     {
-                        _logger.LogWarning("Could not retrieve history for prompt {PromptId}: {StatusCode}", 
-                            promptId, historyResponse.StatusCode);
+                        _logger.LogWarning("Could not retrieve history for prompt {PromptId}: prompt not found in history", promptId);
                         
                         if (attempt < maxRetries)
                         {
@@ -459,29 +445,15 @@ namespace VideoGenerationApp.Services
                         return null;
                     }
 
-                    var historyJson = await historyResponse.Content.ReadAsStringAsync();
+                    var historyJson = JsonSerializer.Serialize(historyResponse[promptId]);
                     _logger.LogDebug("History response for prompt {PromptId} (attempt {Attempt}): {HistoryJson}", 
                         promptId, attempt, historyJson);
                     
                     // Parse history to find output files
                     using var document = JsonDocument.Parse(historyJson);
                     
-                    // ComfyUI history structure: { "promptId": { "outputs": { "nodeId": { "images": [...] or "audio": [...] } } } }
-                    if (!document.RootElement.TryGetProperty(promptId, out var promptData))
-                    {
-                        _logger.LogWarning("No history found for prompt {PromptId} (attempt {Attempt}/{MaxRetries})", 
-                            promptId, attempt, maxRetries);
-                        
-                        if (attempt < maxRetries)
-                        {
-                            _logger.LogDebug("Retrying history fetch for prompt {PromptId}, history may not be ready yet", promptId);
-                            await Task.Delay(TimeSpan.FromSeconds(retryDelaySeconds));
-                            continue;
-                        }
-                        return null;
-                    }
-
-                    if (!promptData.TryGetProperty("outputs", out var outputs))
+                    // ComfyUI history structure: { "outputs": { "nodeId": { "images": [...] or "audio": [...] } } }
+                    if (!document.RootElement.TryGetProperty("outputs", out var outputs))
                     {
                         _logger.LogWarning("No outputs found for prompt {PromptId} (attempt {Attempt}/{MaxRetries})", 
                             promptId, attempt, maxRetries);
@@ -580,13 +552,8 @@ namespace VideoGenerationApp.Services
                     
                 _logger.LogInformation("Downloading file: {DownloadUrl} (from subfolder: {ComfySubfolder})", downloadUrl, comfySubfolder ?? "root");
                 
-                var fileResponse = await _httpClient.GetAsync(downloadUrl);
-                if (!fileResponse.IsSuccessStatusCode)
-                {
-                    _logger.LogError("Failed to download file: {StatusCode}", fileResponse.StatusCode);
-                    return null;
-                }
-
+                var fileBytes = await _comfyUIClient.GetImageAsync(filename, subfolder: comfySubfolder);
+                
                 // Create output directory in wwwroot - use the requested outputSubfolder, not the ComfyUI subfolder
                 var webRootPath = _environment.WebRootPath;
                 var outputsPath = Path.Combine(webRootPath, outputSubfolder);
@@ -603,8 +570,7 @@ namespace VideoGenerationApp.Services
                 
                 _logger.LogInformation("Saving file to: {LocalFilePath}", localFilePath);
                 
-                using var fileStream = File.Create(localFilePath);
-                await fileResponse.Content.CopyToAsync(fileStream);
+                await File.WriteAllBytesAsync(localFilePath, fileBytes);
                 
                 var returnPath = $"/{outputSubfolder}/{localFileName}";
                 _logger.LogInformation("File downloaded and saved: {FilePath}, returning web path: {ReturnPath}", localFilePath, returnPath);
@@ -627,29 +593,17 @@ namespace VideoGenerationApp.Services
                 _logger.LogInformation("Attempting to cancel ComfyUI job with prompt ID: {PromptId}", promptId);
                 
                 // First try to delete from queue if it's still queued
-                var deletePayload = new { delete = new[] { promptId } };
-                var deleteJson = JsonSerializer.Serialize(deletePayload);
-                var deleteResponse = await _httpClient.PostAsync("/queue", 
-                    new StringContent(deleteJson, Encoding.UTF8, "application/json"));
+                var queueRequest = new QueueRequest { Delete = new[] { promptId } };
+                await _comfyUIClient.ManageQueueAsync(queueRequest);
                 
-                if (deleteResponse.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("Successfully deleted queued job {PromptId} from ComfyUI queue", promptId);
-                    return true;
-                }
+                _logger.LogInformation("Successfully deleted queued job {PromptId} from ComfyUI queue", promptId);
                 
-                // If deletion didn't work, try to interrupt the execution
-                var interruptResponse = await _httpClient.PostAsync("/interrupt", new StringContent(""));
+                // Also try to interrupt the execution in case it's running
+                var interruptRequest = new InterruptRequest { PromptId = promptId };
+                await _comfyUIClient.InterruptAsync(interruptRequest);
                 
-                if (interruptResponse.IsSuccessStatusCode)
-                {
-                    _logger.LogInformation("Successfully interrupted ComfyUI execution (this may affect the currently running job)");
-                    return true;
-                }
-                
-                _logger.LogWarning("Failed to cancel job {PromptId}. Delete status: {DeleteStatus}, Interrupt status: {InterruptStatus}", 
-                    promptId, deleteResponse.StatusCode, interruptResponse.StatusCode);
-                return false;
+                _logger.LogInformation("Successfully interrupted ComfyUI execution for prompt {PromptId}", promptId);
+                return true;
             }
             catch (Exception ex)
             {
@@ -699,7 +653,8 @@ namespace VideoGenerationApp.Services
         /// </summary>
         public virtual void Dispose()
         {
-            _httpClient?.Dispose();
+            // The ComfyUI client doesn't need to be disposed directly 
+            // as it's managed by the DI container and HttpClient is managed by HttpClientFactory
         }
     }
 }

@@ -2,7 +2,9 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
 @rendermode InteractiveServer
 @using VideoGenerationApp.Services
+@using VideoGenerationApp.Services.Generation
 @using VideoGenerationApp.Dto
+@inject ImageGenerationWorkflow ImageWorkflow
 @inject IGenerationQueueService QueueService
 @inject OllamaOutputState OutputState
 @inject ILogger<GenerateImage> Logger
@@ -258,10 +260,10 @@
             isLoadingModels = true;
             StateHasChanged();
             
-            Logger.LogInformation("Loading available image models from ComfyUI via QueueService");
+            Logger.LogInformation("Loading available image models from ComfyUI via ImageWorkflow");
             
-            // Get models from the queue service which has access to ComfyUI services
-            availableModels = await QueueService.GetImageModelsAsync();
+            // Get models from the image workflow which has access to ComfyUI services
+            availableModels = await ImageWorkflow.GetAvailableModelsAsync();
             
             // If current checkpoint is not in the list and list is not empty, select the first one
             if (availableModels.Any() && !availableModels.Contains(imageConfig.CheckpointName))
@@ -330,8 +332,8 @@
             if (taskName.Length > 80)
                 taskName = taskName.Substring(0, 77) + "...";
 
-            // Queue the generation
-            var taskId = await QueueService.QueueImageGenerationAsync(taskName, imageConfig);
+            // Use the new workflow service instead of the queue service directly
+            var taskId = await ImageWorkflow.GenerateAsync(taskName, imageConfig);
 
             // Show success message
             await JSRuntime.InvokeVoidAsync("alert",

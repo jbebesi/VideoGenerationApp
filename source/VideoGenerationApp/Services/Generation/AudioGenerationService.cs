@@ -1,4 +1,3 @@
-using Microsoft.Extensions.DependencyInjection;
 using VideoGenerationApp.Dto;
 
 namespace VideoGenerationApp.Services.Generation
@@ -8,9 +7,14 @@ namespace VideoGenerationApp.Services.Generation
     /// </summary>
     public class AudioGenerationService : GenerationServiceBase<AudioWorkflowConfig>
     {
-        public AudioGenerationService(IServiceScopeFactory serviceScopeFactory, ILogger<AudioGenerationService> logger)
-            : base(serviceScopeFactory, logger)
+        private readonly IComfyUIAudioService _audioService;
+
+        public AudioGenerationService(
+            IComfyUIAudioService audioService,
+            ILogger<AudioGenerationService> logger)
+            : base(null!, logger) // Pass null for service scope factory since we're injecting services directly
         {
+            _audioService = audioService;
         }
 
         public override GenerationType Type => GenerationType.Audio;
@@ -36,15 +40,12 @@ namespace VideoGenerationApp.Services.Generation
             {
                 _logger.LogInformation("Submitting AUDIO generation task {TaskId} to ComfyUI", task.Id);
                 
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                
                 var workflow = AudioWorkflowFactory.CreateWorkflow(config);
-                var workflowDict = audioService.ConvertWorkflowToComfyUIFormat(workflow);
+                var workflowDict = _audioService.ConvertWorkflowToComfyUIFormat(workflow);
                 
                 _logger.LogDebug("Audio workflow prepared for task {TaskId} with {NodeCount} nodes", task.Id, workflowDict.Count);
                 
-                var promptId = await audioService.SubmitWorkflowAsync(workflowDict);
+                var promptId = await _audioService.SubmitWorkflowAsync(workflowDict);
                 
                 if (!string.IsNullOrEmpty(promptId))
                 {
@@ -65,9 +66,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                return await audioService.GetAudioModelsAsync();
+                return await _audioService.GetAudioModelsAsync();
             }
             catch (Exception ex)
             {
@@ -80,9 +79,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                return await audioService.GetQueueStatusAsync();
+                return await _audioService.GetQueueStatusAsync();
             }
             catch (Exception ex)
             {
@@ -95,9 +92,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                return await audioService.CancelJobAsync(promptId);
+                return await _audioService.CancelJobAsync(promptId);
             }
             catch (Exception ex)
             {
@@ -110,9 +105,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                return await audioService.GetCLIPModelsAsync();
+                return await _audioService.GetCLIPModelsAsync();
             }
             catch (Exception ex)
             {
@@ -125,9 +118,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                return await audioService.GetVAEModelsAsync();
+                return await _audioService.GetVAEModelsAsync();
             }
             catch (Exception ex)
             {
@@ -140,9 +131,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                return await audioService.GetAudioEncoderModelsAsync();
+                return await _audioService.GetAudioEncoderModelsAsync();
             }
             catch (Exception ex)
             {
@@ -155,9 +144,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var audioService = scope.ServiceProvider.GetRequiredService<IComfyUIAudioService>();
-                return await audioService.GetGeneratedFileAsync(promptId, OutputSubfolder, FilePrefix);
+                return await _audioService.GetGeneratedFileAsync(promptId, OutputSubfolder, FilePrefix);
             }
             catch (Exception ex)
             {

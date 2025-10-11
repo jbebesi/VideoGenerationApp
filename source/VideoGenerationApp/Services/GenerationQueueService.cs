@@ -1,37 +1,22 @@
-using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Hosting;
 using System.Collections.Concurrent;
-using VideoGenerationApp.Components;
 using VideoGenerationApp.Dto;
-using VideoGenerationApp.Services.Generation;
 
 namespace VideoGenerationApp.Services
 {
     /// <summary>
-    /// Service to manage generation tasks and queue
+    /// Simplified service to manage generation tasks queue
+    /// No longer depends on specific generation services - tasks handle their own lifecycle
     /// </summary>
     public class GenerationQueueService : IHostedService, IGenerationQueueService
     {
-        private readonly ConcurrentDictionary<string, GenerationTask> _tasks = new();
+        private readonly ConcurrentDictionary<string, GenerationTaskBase> _tasks = new();
         private readonly ILogger<GenerationQueueService> _logger;
-        private readonly IGenerationService<VideoWorkflowConfig> _videoGenerationService;
-        private readonly IGenerationService<ImageWorkflowConfig> _imageGenerationService;
-        private readonly IGenerationService<AudioWorkflowConfig> _audioGenerationService;
         private Timer? _monitorTimer;
         
-        
-        
-
-        public GenerationQueueService(
-            ILogger<GenerationQueueService> logger,
-            IGenerationService<VideoWorkflowConfig> videoGenerationService,
-            IGenerationService<ImageWorkflowConfig> imageGenerationService,
-            IGenerationService<AudioWorkflowConfig> audioGenerationService)
+        public GenerationQueueService(ILogger<GenerationQueueService> logger)
         {
             _logger = logger;
-            _videoGenerationService = videoGenerationService;
-            _imageGenerationService = imageGenerationService;
-            _audioGenerationService = audioGenerationService;
         }
         
         /// <summary>
@@ -46,7 +31,7 @@ namespace VideoGenerationApp.Services
         {
             _logger.LogInformation("Generation Queue Service is starting...");
             
-            // Check for completed tasks every 15 seconds (more frequent updates)
+            // Check for completed tasks every 15 seconds
             _monitorTimer = new Timer(CheckCompletedTasks, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15));
             
             _logger.LogInformation("Generation Queue Service started successfully");
@@ -67,55 +52,50 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Adds a new audio generation task to the queue
+        /// Adds a task to the queue and starts processing it
+        /// </summary>
+        public async Task<string> QueueTaskAsync(GenerationTaskBase task)
+        {
+            _tasks[task.Id] = task;
+            
+            _logger.LogInformation("Queued new {TaskType} generation task: {TaskId} - {Name}", 
+                task.Type, task.Id, task.Name);
+            
+            // Submit task for processing
+            await SubmitTaskAsync(task);
+            
+            // Convert to legacy GenerationTask for event compatibility
+            var legacyTask = ConvertToLegacyTask(task);
+            TaskStatusChanged?.Invoke(legacyTask);
+            
+            return task.Id;
+        }
+        
+        /// <summary>
+        /// Legacy method for audio generation (backward compatibility)
         /// </summary>
         public async Task<string> QueueGenerationAsync(string name, AudioWorkflowConfig config, string? notes = null)
         {
-            var task = _audioGenerationService.CreateTask(name, config, notes);
-            _tasks[task.Id] = task;
-            
-            _logger.LogInformation("Queued new audio generation task: {TaskId} - {Name}", task.Id, task.Name);
-            
-            // Submit to ComfyUI immediately
-            await SubmitTaskAsync(task, _audioGenerationService, config);
-            
-            TaskStatusChanged?.Invoke(task);
-            return task.Id;
+            // This method should no longer be used - generation workflows should create tasks directly
+            throw new NotSupportedException("Use QueueTaskAsync with AudioGenerationTask instead");
         }
         
         /// <summary>
-        /// Adds a new image generation task to the queue
+        /// Legacy method for image generation (backward compatibility)
         /// </summary>
         public async Task<string> QueueImageGenerationAsync(string name, ImageWorkflowConfig config, string? notes = null)
         {
-
-            var task = _imageGenerationService.CreateTask(name, config, notes);
-            _tasks[task.Id] = task;
-            
-            _logger.LogInformation("Queued new image generation task: {TaskId} - {Name}", task.Id, task.Name);
-            
-            // Submit to ComfyUI immediately
-            await SubmitTaskAsync(task, _imageGenerationService, config);
-            
-            TaskStatusChanged?.Invoke(task);
-            return task.Id;
+            // This method should no longer be used - generation workflows should create tasks directly
+            throw new NotSupportedException("Use QueueTaskAsync with ImageGenerationTask instead");
         }
         
         /// <summary>
-        /// Adds a new video generation task to the queue
+        /// Legacy method for video generation (backward compatibility)
         /// </summary>
         public async Task<string> QueueVideoGenerationAsync(string name, VideoWorkflowConfig config, string? notes = null)
         {
-            var task = _videoGenerationService.CreateTask(name, config, notes);
-            _tasks[task.Id] = task;
-            
-            _logger.LogInformation("Queued new video generation task: {TaskId} - {Name}", task.Id, task.Name);
-            
-            // Submit to ComfyUI immediately
-            await SubmitTaskAsync(task, _videoGenerationService, config);
-            
-            TaskStatusChanged?.Invoke(task);
-            return task.Id;
+            // This method should no longer be used - generation workflows should create tasks directly
+            throw new NotSupportedException("Use QueueTaskAsync with VideoGenerationTask instead");
         }
         
         /// <summary>
@@ -123,7 +103,7 @@ namespace VideoGenerationApp.Services
         /// </summary>
         public IEnumerable<GenerationTask> GetAllTasks()
         {
-            return _tasks.Values.OrderByDescending(t => t.CreatedAt);
+            return _tasks.Values.Select(ConvertToLegacyTask).OrderByDescending(t => t.CreatedAt);
         }
         
         /// <summary>
@@ -131,7 +111,7 @@ namespace VideoGenerationApp.Services
         /// </summary>
         public async Task<IEnumerable<GenerationTask>> GetAllTasksAsync()
         {
-            return await Task.FromResult(_tasks.Values.OrderByDescending(t => t.CreatedAt));
+            return await Task.FromResult(_tasks.Values.Select(ConvertToLegacyTask).OrderByDescending(t => t.CreatedAt));
         }
         
         /// <summary>
@@ -139,8 +119,11 @@ namespace VideoGenerationApp.Services
         /// </summary>
         public GenerationTask? GetTask(string taskId)
         {
-            _tasks.TryGetValue(taskId, out var task);
-            return task;
+            if (_tasks.TryGetValue(taskId, out var task))
+            {
+                return ConvertToLegacyTask(task);
+            }
+            return null;
         }
         
         /// <summary>
@@ -150,26 +133,31 @@ namespace VideoGenerationApp.Services
         {
             if (_tasks.TryGetValue(taskId, out var task))
             {
-                if (task.Status == GenerationStatus.Pending || task.Status == GenerationStatus.Queued || task.Status == GenerationStatus.Processing)
+                if (task.Status == GenerationStatus.Pending || 
+                    task.Status == GenerationStatus.Queued || 
+                    task.Status == GenerationStatus.Processing)
                 {
-                    // If task has a prompt ID, try to cancel it in ComfyUI
+                    // Try to cancel the task using its own cancel method
                     if (!string.IsNullOrEmpty(task.PromptId))
                     {
                         try
                         {
-                            var cancelled = await CancelTaskInComfyUI(task);
+                            var cancelled = await task.CancelAsync();
                             if (cancelled)
                             {
-                                _logger.LogInformation("Successfully cancelled ComfyUI job {PromptId} for task {TaskId}", task.PromptId, task.Id);
+                                _logger.LogInformation("Successfully cancelled ComfyUI job {PromptId} for task {TaskId}", 
+                                    task.PromptId, task.Id);
                             }
                             else
                             {
-                                _logger.LogWarning("Failed to cancel ComfyUI job {PromptId} for task {TaskId}, but will mark task as cancelled locally", task.PromptId, task.Id);
+                                _logger.LogWarning("Failed to cancel ComfyUI job {PromptId} for task {TaskId}, but will mark task as cancelled locally", 
+                                    task.PromptId, task.Id);
                             }
                         }
                         catch (Exception ex)
                         {
-                            _logger.LogError(ex, "Error cancelling ComfyUI job {PromptId} for task {TaskId}, but will mark task as cancelled locally", task.PromptId, task.Id);
+                            _logger.LogError(ex, "Error cancelling ComfyUI job {PromptId} for task {TaskId}, but will mark task as cancelled locally", 
+                                task.PromptId, task.Id);
                         }
                     }
                     
@@ -179,7 +167,9 @@ namespace VideoGenerationApp.Services
                     task.ErrorMessage = "Cancelled by user";
                     
                     _logger.LogInformation("Cancelled task: {TaskId} - {Name}", task.Id, task.Name);
-                    TaskStatusChanged?.Invoke(task);
+                    
+                    var legacyTask = ConvertToLegacyTask(task);
+                    TaskStatusChanged?.Invoke(legacyTask);
                     return true;
                 }
             }
@@ -216,9 +206,9 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Submits a task using the appropriate generation service
+        /// Submits a task for processing
         /// </summary>
-        private async Task SubmitTaskAsync<TConfig>(GenerationTask task, IGenerationService<TConfig> service, TConfig config) where TConfig : class
+        private async Task SubmitTaskAsync(GenerationTaskBase task)
         {
             _logger.LogInformation("Starting submission of task {TaskId} ({TaskName}) - Type: {TaskType}", 
                 task.Id, task.Name, task.Type);
@@ -228,7 +218,7 @@ namespace VideoGenerationApp.Services
                 task.Status = GenerationStatus.Queued;
                 task.SubmittedAt = DateTime.UtcNow;
                 
-                var promptId = await service.SubmitTaskAsync(task, config);
+                var promptId = await task.SubmitAsync();
                 
                 if (!string.IsNullOrEmpty(promptId))
                 {
@@ -245,7 +235,8 @@ namespace VideoGenerationApp.Services
                         task.Type, task.Id, task.Name);
                 }
                 
-                TaskStatusChanged?.Invoke(task);
+                var legacyTask = ConvertToLegacyTask(task);
+                TaskStatusChanged?.Invoke(legacyTask);
             }
             catch (Exception ex)
             {
@@ -255,26 +246,14 @@ namespace VideoGenerationApp.Services
                 
                 _logger.LogError(ex, "✗ Error submitting {TaskType} task {TaskId} ({TaskName}) to ComfyUI. Error: {ErrorMessage}", 
                     task.Type, task.Id, task.Name, ex.Message);
-                TaskStatusChanged?.Invoke(task);
+                
+                var legacyTask = ConvertToLegacyTask(task);
+                TaskStatusChanged?.Invoke(legacyTask);
             }
         }
 
         /// <summary>
-        /// Cancel a task in ComfyUI using the appropriate service
-        /// </summary>
-        private async Task<bool> CancelTaskInComfyUI(GenerationTask task)
-        {
-            return task.Type switch
-            {
-                GenerationType.Audio => await (_audioGenerationService.CancelTaskAsync(task.PromptId!) ?? Task.FromResult(false)),
-                GenerationType.Image => await (_imageGenerationService.CancelTaskAsync(task.PromptId!) ?? Task.FromResult(false)),
-                GenerationType.Video => await (_videoGenerationService.CancelTaskAsync(task.PromptId!) ?? Task.FromResult(false)),
-                _ => false
-            };
-        }
-
-        /// <summary>
-        /// Periodically checks for completed tasks and downloads files
+        /// Periodically checks for completed tasks
         /// </summary>
         private async void CheckCompletedTasks(object? state)
         {
@@ -292,15 +271,8 @@ namespace VideoGenerationApp.Services
                     return;
                 }
                 
-                _logger.LogDebug("Checking {ActiveCount} active tasks for completion (Total tasks in queue: {TotalCount})", activeTasks.Count, allTasks.Count);
-                
-                if (allTasks.Any())
-                {
-                    var statusSummary = allTasks.GroupBy(t => t.Status)
-                        .Select(g => $"{g.Key}: {g.Count()}")
-                        .ToList();
-                    _logger.LogDebug("Task queue summary: {StatusSummary}", string.Join(", ", statusSummary));
-                }
+                _logger.LogDebug("Checking {ActiveCount} active tasks for completion (Total tasks in queue: {TotalCount})", 
+                    activeTasks.Count, allTasks.Count);
                 
                 foreach (var task in activeTasks)
                 {
@@ -316,40 +288,20 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Checks if a specific task has completed and downloads the file
+        /// Checks if a specific task has completed
         /// </summary>
-        private async Task CheckTaskCompletionAsync(GenerationTask task)
+        private async Task CheckTaskCompletionAsync(GenerationTaskBase task)
         {
             try
             {
-                string? filePath = null;
-                
-                switch (task.Type)
-                {
-                    case GenerationType.Audio:
-                        {
-                                filePath = await _audioGenerationService.CheckTaskCompletionAsync(task);
-                        }
-                        break;
-                    case GenerationType.Image:
-                        {
-                            filePath = await _imageGenerationService.CheckTaskCompletionAsync(task);
-                        }
-                        break;
-                    case GenerationType.Video:
-                        {
-                            filePath = await _videoGenerationService.CheckTaskCompletionAsync(task);
-                        }
-                        break;
-                    default:
-                        _logger.LogWarning("No generation service available for task {TaskId} of type {TaskType}", task.Id, task.Type);
-                        return;
-                }
-
+                var filePath = await task.CheckCompletionAsync();
                 if (!string.IsNullOrEmpty(filePath))
                 {
-                    _logger.LogInformation("Invoking TaskStatusChanged event for completed task {TaskId}", task.Id);
-                    TaskStatusChanged?.Invoke(task);
+                    _logger.LogInformation("Task {TaskId} ({TaskName}) completed successfully: {FilePath}", 
+                        task.Id, task.Name, filePath);
+                    
+                    var legacyTask = ConvertToLegacyTask(task);
+                    TaskStatusChanged?.Invoke(legacyTask);
                 }
             }
             catch (Exception ex)
@@ -361,75 +313,98 @@ namespace VideoGenerationApp.Services
                 
                 _logger.LogError(ex, "Error checking completion for task {TaskId} ({TaskName}) - Type: {TaskType}, PromptId: {PromptId}", 
                     task.Id, task.Name, task.Type, task.PromptId);
-                TaskStatusChanged?.Invoke(task);
+                
+                var legacyTask = ConvertToLegacyTask(task);
+                TaskStatusChanged?.Invoke(legacyTask);
             }
         }
-
+        
         /// <summary>
-        /// Gets available audio generation models from ComfyUI
+        /// Convert new task format to legacy GenerationTask for backward compatibility
         /// </summary>
+        private GenerationTask ConvertToLegacyTask(GenerationTaskBase task)
+        {
+            var legacyTask = new GenerationTask
+            {
+                Id = task.Id,
+                PromptId = task.PromptId,
+                Name = task.Name,
+                PositivePrompt = task.PositivePrompt,
+                Type = task.Type,
+                Status = task.Status,
+                CreatedAt = task.CreatedAt,
+                SubmittedAt = task.SubmittedAt,
+                CompletedAt = task.CompletedAt,
+                ErrorMessage = task.ErrorMessage,
+                GeneratedFilePath = task.GeneratedFilePath,
+                QueuePosition = task.QueuePosition,
+                Notes = task.Notes
+            };
+            
+            // Set type-specific config
+            switch (task.Type)
+            {
+                case GenerationType.Audio when task is AudioGenerationTask audioTask:
+                    legacyTask.AudioConfig = audioTask.Config;
+                    break;
+                case GenerationType.Image when task is ImageGenerationTask imageTask:
+                    legacyTask.ImageConfig = imageTask.Config;
+                    break;
+                case GenerationType.Video when task is VideoGenerationTask videoTask:
+                    legacyTask.VideoConfig = videoTask.Config;
+                    break;
+            }
+            
+            return legacyTask;
+        }
+
+        // Legacy model accessor methods - these should be moved to dedicated model services
         public async Task<List<string>> GetAudioModelsAsync()
         {
-            return await _audioGenerationService.GetModelsAsync(); 
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
         
-        /// <summary>
-        /// Gets available image generation models from ComfyUI
-        /// </summary>
         public async Task<List<string>> GetImageModelsAsync()
         {
-
-            return await _imageGenerationService.GetModelsAsync();
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
         
-        /// <summary>
-        /// Gets available video generation models from ComfyUI
-        /// </summary>
         public async Task<List<string>> GetVideoModelsAsync()
         {
-            return await _videoGenerationService.GetModelsAsync();
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
 
-        /// <summary>
-        /// Gets available CLIP (text encoder) models from ComfyUI
-        /// </summary>
         public async Task<List<string>> GetCLIPModelsAsync()
         {
-            return await _audioGenerationService.GetCLIPModelsAsync();
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
 
-        /// <summary>
-        /// Gets available VAE models from ComfyUI
-        /// </summary>
         public async Task<List<string>> GetVAEModelsAsync()
         {
-
-            return await _audioGenerationService.GetVAEModelsAsync();
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
 
-        /// <summary>
-        /// Gets available UNET (diffusion model) models from ComfyUI
-        /// </summary>
         public async Task<List<string>> GetUNETModelsAsync()
         {
-            return await _videoGenerationService.GetUNETModelsAsync();
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
 
-        /// <summary>
-        /// Gets available Audio Encoder models from ComfyUI
-        /// </summary>
         public async Task<List<string>> GetAudioEncoderModelsAsync()
         {
-
-            return await _audioGenerationService.GetAudioEncoderModelsAsync();
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
 
-        /// <summary>
-        /// Gets available LoRA models from ComfyUI
-        /// </summary>
         public async Task<List<string>> GetLoRAModelsAsync()
         {
-            return await _videoGenerationService.GetLoRAModelsAsync();
+            // TODO: Move to dedicated model service
+            return new List<string>();
         }
         
         public void Dispose()

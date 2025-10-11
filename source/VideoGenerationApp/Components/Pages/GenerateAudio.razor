@@ -2,8 +2,10 @@
 @using static Microsoft.AspNetCore.Components.Web.RenderMode
 @rendermode InteractiveServer
 @using VideoGenerationApp.Services
+@using VideoGenerationApp.Services.Generation
 @using VideoGenerationApp.Dto
 @inject IComfyUIAudioService ComfyUIAudioService
+@inject AudioGenerationWorkflow AudioWorkflow
 @inject IGenerationQueueService QueueService
 @inject OllamaOutputState OutputState
 @inject ILogger<GenerateAudio> Logger
@@ -356,8 +358,11 @@
 
     private async Task GenerateAudioAsync()
     {
+        Logger.LogInformation("🎵 GenerateAudioAsync method called - starting audio generation process");
+        
         if (string.IsNullOrWhiteSpace(workflowConfig.Tags))
         {
+            Logger.LogWarning("🎵 Audio generation cancelled - no tags provided");
             errorMessage = "Please enter tags for the audio style.";
             return;
         }
@@ -367,9 +372,6 @@
             errorMessage = null;
             errorDetails = null;
             
-            Logger.LogInformation("Queuing ACE Step audio generation: Tags={Tags}, Lyrics={Lyrics}", 
-                workflowConfig.Tags, workflowConfig.Lyrics?.Substring(0, Math.Min(50, workflowConfig.Lyrics?.Length ?? 0)));
-            
             // Generate a user-friendly name from the tags and lyrics
             var taskName = !string.IsNullOrWhiteSpace(workflowConfig.Lyrics) && workflowConfig.Lyrics.Length > 10
                 ? $"{workflowConfig.Tags} - {workflowConfig.Lyrics.Substring(0, Math.Min(30, workflowConfig.Lyrics.Length))}..."
@@ -378,18 +380,22 @@
             if (taskName.Length > 80)
                 taskName = taskName.Substring(0, 77) + "...";
             
-            // Queue the generation (fire and forget)
-            var taskId = await QueueService.QueueGenerationAsync(taskName, workflowConfig);
+            Logger.LogInformation("🎵 Calling AudioWorkflow.GenerateAsync with task name: {TaskName}", taskName);
+            
+            // Use the new workflow service instead of the queue service directly
+            var taskId = await AudioWorkflow.GenerateAsync(taskName, workflowConfig);
+            
+            Logger.LogInformation("🎵 AudioWorkflow returned task ID: {TaskId}", taskId);
             
             // Show success message
             await JSRuntime.InvokeVoidAsync("alert", 
                 $"ACE Step audio generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
             
-            Logger.LogInformation("ACE Step audio generation queued with Task ID: {TaskId}", taskId);
+            Logger.LogInformation("🎵 ACE Step audio generation queued with Task ID: {TaskId}", taskId);
         }
         catch (Exception ex)
         {
-            Logger.LogError(ex, "Error queuing ACE Step audio generation");
+            Logger.LogError(ex, "🎵 Error queuing ACE Step audio generation");
             errorMessage = $"Failed to queue audio generation: {ex.Message}";
             errorDetails = ex.ToString();
         }

@@ -8,9 +8,14 @@ namespace VideoGenerationApp.Services.Generation
     /// </summary>
     public class ImageGenerationService : GenerationServiceBase<ImageWorkflowConfig>
     {
-        public ImageGenerationService(IServiceScopeFactory serviceScopeFactory, ILogger<ImageGenerationService> logger)
-            : base(serviceScopeFactory, logger)
+        private readonly IComfyUIImageService _imageService;
+
+        public ImageGenerationService(
+            IComfyUIImageService imageService,
+            ILogger<ImageGenerationService> logger)
+            : base(null!, logger) // Pass null for service scope factory since we're injecting services directly
         {
+            _imageService = imageService;
         }
 
         public override GenerationType Type => GenerationType.Image;
@@ -36,11 +41,8 @@ namespace VideoGenerationApp.Services.Generation
             {
                 _logger.LogInformation("Submitting IMAGE generation task {TaskId} to ComfyUI", task.Id);
                 
-                using var scope = _serviceScopeFactory.CreateScope();
-                var imageService = scope.ServiceProvider.GetRequiredService<IComfyUIImageService>();
-                
                 var workflow = ImageWorkflowFactory.CreateWorkflow(config);
-                var workflowDict = imageService.ConvertWorkflowToComfyUIFormat(workflow);
+                var workflowDict = _imageService.ConvertWorkflowToComfyUIFormat(workflow);
                 
                 _logger.LogDebug("Image workflow prepared for task {TaskId} with {NodeCount} nodes - Size: {Width}x{Height}", 
                     task.Id, workflowDict.Count, config.Width, config.Height);
@@ -50,7 +52,7 @@ namespace VideoGenerationApp.Services.Generation
                     new System.Text.Json.JsonSerializerOptions { WriteIndented = true });
                 _logger.LogDebug("Image workflow JSON for task {TaskId}: {WorkflowJson}", task.Id, workflowJson);
                 
-                var promptId = await imageService.SubmitWorkflowAsync(workflowDict);
+                var promptId = await _imageService.SubmitWorkflowAsync(workflowDict);
                 
                 if (!string.IsNullOrEmpty(promptId))
                 {
@@ -71,9 +73,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var imageService = scope.ServiceProvider.GetRequiredService<IComfyUIImageService>();
-                return await imageService.GetImageModelsAsync();
+                return await _imageService.GetImageModelsAsync();
             }
             catch (Exception ex)
             {
@@ -86,9 +86,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var imageService = scope.ServiceProvider.GetRequiredService<IComfyUIImageService>();
-                return await imageService.GetQueueStatusAsync();
+                return await _imageService.GetQueueStatusAsync();
             }
             catch (Exception ex)
             {
@@ -101,9 +99,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var imageService = scope.ServiceProvider.GetRequiredService<IComfyUIImageService>();
-                return await imageService.CancelJobAsync(promptId);
+                return await _imageService.CancelJobAsync(promptId);
             }
             catch (Exception ex)
             {
@@ -116,9 +112,7 @@ namespace VideoGenerationApp.Services.Generation
         {
             try
             {
-                using var scope = _serviceScopeFactory.CreateScope();
-                var imageService = scope.ServiceProvider.GetRequiredService<IComfyUIImageService>();
-                return await imageService.GetGeneratedFileAsync(promptId, OutputSubfolder, FilePrefix);
+                return await _imageService.GetGeneratedFileAsync(promptId, OutputSubfolder, FilePrefix);
             }
             catch (Exception ex)
             {

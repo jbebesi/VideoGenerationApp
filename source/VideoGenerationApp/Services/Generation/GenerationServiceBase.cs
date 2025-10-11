@@ -8,10 +8,10 @@ namespace VideoGenerationApp.Services.Generation
     /// </summary>
     public abstract class GenerationServiceBase<TConfig> : IGenerationService<TConfig> where TConfig : class
     {
-        protected readonly IServiceScopeFactory _serviceScopeFactory;
+        protected readonly IServiceScopeFactory? _serviceScopeFactory;
         protected readonly ILogger _logger;
 
-        protected GenerationServiceBase(IServiceScopeFactory serviceScopeFactory, ILogger logger)
+        protected GenerationServiceBase(IServiceScopeFactory? serviceScopeFactory, ILogger logger)
         {
             _serviceScopeFactory = serviceScopeFactory;
             _logger = logger;
