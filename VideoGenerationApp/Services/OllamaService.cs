@@ -5,7 +5,7 @@ using VideoGenerationApp.Dto;
 
 namespace VideoGenerationApp.Services
 {
-    public class OllamaService
+    public class OllamaService : IOllamaService
     {
         private readonly HttpClient _httpClient;
         private readonly ILogger<OllamaService> _logger;
@@ -42,7 +42,7 @@ Generate the structured output now.
             _logger = logger;
         }
 
-        public virtual async Task<List<string>> GetLocalModelsAsync()
+        public async Task<List<string>> GetLocalModelsAsync()
         {
             try
             {
@@ -72,7 +72,7 @@ Generate the structured output now.
             }
         }
 
-        public virtual async Task<List<OllamaModel>> GetLocalModelsWithDetailsAsync()
+        public async Task<List<OllamaModel>> GetLocalModelsWithDetailsAsync()
         {
             try
             {
@@ -111,7 +111,7 @@ Generate the structured output now.
             }
         }
 
-        public virtual async Task<string> SendPromptAsync(string model, string prompt)
+        public async Task<string> SendPromptAsync(string model, string prompt)
         {
             var request = new OllamaPromptRequest 
             { 
@@ -122,7 +122,7 @@ Generate the structured output now.
             return await SendPromptAsync(request);
         }
 
-        public virtual async Task<string> SendPromptAsync(OllamaPromptRequest request)
+        public async Task<string> SendPromptAsync(OllamaPromptRequest request)
         {
             try
             {
@@ -166,7 +166,7 @@ Generate the structured output now.
                 .Replace("{{Insert tone here}}", "happy");
         }
 
-        public virtual VideoSceneOutput? TryParseVideoSceneOutput(string rawResponse)
+        public VideoSceneOutput? TryParseVideoSceneOutput(string rawResponse)
         {
             try
             {

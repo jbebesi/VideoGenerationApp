@@ -3,7 +3,7 @@
 @rendermode InteractiveServer
 @using VideoGenerationApp.Services
 @using VideoGenerationApp.Dto
-@inject OllamaService OllamaService
+@inject IOllamaService OllamaService
 @inject OllamaOutputState OutputState
 @inject ILogger<OllamaModels> Logger
 @implements IDisposable
@@ -67,7 +67,7 @@
                                 var displayText = modelDetail.name;
                                 if (modelDetail.size > 0)
                                 {
-                                    var sizeText = OllamaService.FormatFileSize(modelDetail.size);
+                                    var sizeText = VideoGenerationApp.Services.OllamaService.FormatFileSize(modelDetail.size);
                                     displayText = $"{modelDetail.name} ({sizeText})";
                                 }
                                 <option value="@modelDetail.name" selected="@(modelDetail.name == selectedModel)">
@@ -196,7 +196,7 @@
 
             <!-- Action Buttons -->
             <div class="d-flex gap-2 mb-4">
-                <button class="btn btn-success" @onclick="SendPrompt" disabled="@(isLoading || string.IsNullOrWhiteSpace(prompt) || string.IsNullOrEmpty(selectedModel))">
+                <button class="btn btn-success" @onclick="SendPrompt" disabled="@(string.IsNullOrWhiteSpace(prompt) || string.IsNullOrEmpty(selectedModel))">
                     <i class="bi bi-play-fill me-2"></i>Generate prompt template
                 </button>
                 <button class="btn btn-outline-secondary" @onclick="ResetParameters">

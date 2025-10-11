@@ -15,8 +15,8 @@ namespace VideoGenerationApp.Tests.Components
 {
     public class GenerateAudioComponentTests : Bunit.TestContext
     {
-        private readonly Mock<ComfyUIAudioService> _comfyUIServiceMock;
-        private readonly Mock<GenerationQueueService> _queueServiceMock;
+        private readonly Mock<IComfyUIAudioService> _comfyUIServiceMock;
+        private readonly Mock<IGenerationQueueService> _queueServiceMock;
         private readonly Mock<OllamaOutputState> _outputStateMock;
         private readonly Mock<ILogger<GenerateAudio>> _loggerMock;
 
@@ -27,8 +27,8 @@ namespace VideoGenerationApp.Tests.Components
             var environment = Mock.Of<IWebHostEnvironment>();
             var settings = Mock.Of<IOptions<ComfyUISettings>>();
 
-            _comfyUIServiceMock = new Mock<ComfyUIAudioService>(httpClient, logger, environment, settings);
-            _queueServiceMock = new Mock<GenerationQueueService>(Mock.Of<IServiceScopeFactory>(), Mock.Of<ILogger<GenerationQueueService>>());
+            _comfyUIServiceMock = new Mock<IComfyUIAudioService>();
+            _queueServiceMock = new Mock<IGenerationQueueService>();
             _outputStateMock = new Mock<OllamaOutputState>();
             _loggerMock = new Mock<ILogger<GenerateAudio>>();
 

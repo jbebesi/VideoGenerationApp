@@ -5,6 +5,7 @@ using Moq;
 using VideoGenerationApp.Configuration;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Services;
+using VideoGenerationApp.Services.Generation;
 using Xunit;
 
 namespace VideoGenerationApp.Tests.Integration
@@ -132,7 +133,10 @@ namespace VideoGenerationApp.Tests.Integration
         public async Task GenerationQueue_HandlesMultipleTasks_Correctly()
         {
             // Arrange
-            var queueService = new GenerationQueueService(_mockScopeFactory.Object, _mockQueueLogger.Object);
+            // Mock the generation service factory
+            var generationServiceFactoryMock = new Mock<IGenerationServiceFactory>();
+            
+            var queueService = new GenerationQueueService(generationServiceFactoryMock.Object, _mockQueueLogger.Object);
 
             var config1 = new AudioWorkflowConfig { Tags = "pop, upbeat" };
             var config2 = new AudioWorkflowConfig { Tags = "rock, intense" };

@@ -8,7 +8,7 @@ namespace VideoGenerationApp.Services
     /// <summary>
     /// Video-specific ComfyUI service for generating videos using SVD (Stable Video Diffusion)
     /// </summary>
-    public class ComfyUIVideoService : ComfyUIServiceBase
+    public class ComfyUIVideoService : ComfyUIServiceBase, IComfyUIVideoService
     {
         private VideoWorkflowConfig _workflowConfig = new();
 
@@ -24,7 +24,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets the current video workflow configuration
         /// </summary>
-        public virtual VideoWorkflowConfig GetWorkflowConfig()
+        public VideoWorkflowConfig GetWorkflowConfig()
         {
             return _workflowConfig;
         }

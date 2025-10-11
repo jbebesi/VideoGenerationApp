@@ -8,7 +8,7 @@ namespace VideoGenerationApp.Services
     /// <summary>
     /// Audio-specific ComfyUI service for generating audio content
     /// </summary>
-    public class ComfyUIAudioService : ComfyUIServiceBase
+    public class ComfyUIAudioService : ComfyUIServiceBase, IComfyUIAudioService
     {
         private AudioWorkflowConfig _workflowConfig = new();
 
@@ -24,7 +24,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets the current audio workflow configuration
         /// </summary>
-        public virtual AudioWorkflowConfig GetWorkflowConfig()
+        public AudioWorkflowConfig GetWorkflowConfig()
         {
             return _workflowConfig;
         }

@@ -11,16 +11,13 @@ namespace VideoGenerationApp.Tests.Components
 {
     public class GenerateVideoComponentTests : Bunit.TestContext
     {
-        private readonly Mock<GenerationQueueService> _queueServiceMock;
+        private readonly Mock<IGenerationQueueService> _queueServiceMock;
         private readonly OllamaOutputState _outputState;
         private readonly Mock<ILogger<GenerateVideo>> _loggerMock;
 
         public GenerateVideoComponentTests()
         {
-            _queueServiceMock = new Mock<GenerationQueueService>(
-                MockBehavior.Loose,
-                Mock.Of<IServiceScopeFactory>(),
-                Mock.Of<ILogger<GenerationQueueService>>());
+            _queueServiceMock = new Mock<IGenerationQueueService>();
             
             _outputState = new OllamaOutputState();
             _loggerMock = new Mock<ILogger<GenerateVideo>>();

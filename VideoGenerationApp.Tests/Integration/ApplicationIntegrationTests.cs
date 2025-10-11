@@ -18,19 +18,15 @@ namespace VideoGenerationApp.Tests.Integration
     public class ApplicationIntegrationTests : IClassFixture<WebApplicationFactory<Program>>
     {
         private readonly WebApplicationFactory<Program> _factory;
-        private readonly Mock<OllamaService> _mockOllamaService;
-        private readonly Mock<ComfyUIAudioService> _mockComfyUIService;
+        private readonly Mock<IOllamaService> _mockOllamaService;
+        private readonly Mock<IComfyUIAudioService> _mockComfyUIService;
 
         public ApplicationIntegrationTests(WebApplicationFactory<Program> factory)
         {
-            _mockOllamaService = new Mock<OllamaService>(Mock.Of<HttpClient>(), Mock.Of<ILogger<OllamaService>>());
-            _mockComfyUIService = new Mock<ComfyUIAudioService>(
-                Mock.Of<HttpClient>(),
-                Mock.Of<ILogger<ComfyUIAudioService>>(),
-                Mock.Of<IWebHostEnvironment>(),
-                Mock.Of<IOptions<ComfyUISettings>>());
+            _mockOllamaService = new Mock<IOllamaService>();
+            _mockComfyUIService = new Mock<IComfyUIAudioService>();
 
-            // Setup default mock behavior for virtual methods
+            // Setup default mock behavior for methods
             _mockComfyUIService.Setup(x => x.GetWorkflowConfig())
                 .Returns(new AudioWorkflowConfig());
 
@@ -39,8 +35,8 @@ namespace VideoGenerationApp.Tests.Integration
                 builder.ConfigureServices(services =>
                 {
                     // Remove the real services
-                    services.RemoveAll<OllamaService>();
-                    services.RemoveAll<ComfyUIAudioService>();
+                    services.RemoveAll<IOllamaService>();
+                    services.RemoveAll<IComfyUIAudioService>();
 
                     // Add mocked services
                     services.AddSingleton(_mockOllamaService.Object);
@@ -227,9 +223,9 @@ namespace VideoGenerationApp.Tests.Integration
             var services = scope.ServiceProvider;
 
             // Act
-            var ollamaService = services.GetService<OllamaService>();
-            var comfyUIService = services.GetService<ComfyUIAudioService>();
-            var queueService = services.GetService<GenerationQueueService>();
+            var ollamaService = services.GetService<IOllamaService>();
+            var comfyUIService = services.GetService<IComfyUIAudioService>();
+            var queueService = services.GetService<IGenerationQueueService>();
 
             // Assert
             Assert.NotNull(ollamaService);

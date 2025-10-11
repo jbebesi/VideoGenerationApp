@@ -3,7 +3,7 @@
 @rendermode InteractiveServer
 @using VideoGenerationApp.Services
 @using VideoGenerationApp.Dto
-@inject GenerationQueueService QueueService
+@inject IGenerationQueueService QueueService
 @inject OllamaOutputState OutputState
 @inject ILogger<GenerateImage> Logger
 @inject IJSRuntime JSRuntime

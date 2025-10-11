@@ -8,7 +8,7 @@ namespace VideoGenerationApp.Services
     /// <summary>
     /// Image-specific ComfyUI service for generating images
     /// </summary>
-    public class ComfyUIImageService : ComfyUIServiceBase
+    public class ComfyUIImageService : ComfyUIServiceBase, IComfyUIImageService
     {
         private ImageWorkflowConfig _workflowConfig = new();
 
@@ -24,7 +24,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets the current image workflow configuration
         /// </summary>
-        public virtual ImageWorkflowConfig GetWorkflowConfig()
+        public ImageWorkflowConfig GetWorkflowConfig()
         {
             return _workflowConfig;
         }

@@ -3,8 +3,8 @@
 @rendermode InteractiveServer
 @using VideoGenerationApp.Services
 @using VideoGenerationApp.Dto
-@inject ComfyUIAudioService ComfyUIAudioService
-@inject GenerationQueueService QueueService
+@inject IComfyUIAudioService ComfyUIAudioService
+@inject IGenerationQueueService QueueService
 @inject OllamaOutputState OutputState
 @inject ILogger<GenerateAudio> Logger
 @inject IJSRuntime JSRuntime

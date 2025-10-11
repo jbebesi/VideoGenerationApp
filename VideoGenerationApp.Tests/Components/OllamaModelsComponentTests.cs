@@ -14,13 +14,13 @@ namespace VideoGenerationApp.Tests.Components
 {
     public class OllamaModelsComponentTests : Bunit.TestContext
     {
-        private readonly Mock<OllamaService> _ollamaServiceMock;
+        private readonly Mock<IOllamaService> _ollamaServiceMock;
         private readonly Mock<OllamaOutputState> _outputStateMock;
         private readonly Mock<ILogger<OllamaModels>> _loggerMock;
 
         public OllamaModelsComponentTests()
         {
-            _ollamaServiceMock = new Mock<OllamaService>(Mock.Of<HttpClient>(), Mock.Of<ILogger<OllamaService>>());
+            _ollamaServiceMock = new Mock<IOllamaService>();
             _outputStateMock = new Mock<OllamaOutputState>();
             _loggerMock = new Mock<ILogger<OllamaModels>>();
 

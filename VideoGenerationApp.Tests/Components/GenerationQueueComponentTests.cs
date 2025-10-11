@@ -11,12 +11,12 @@ namespace VideoGenerationApp.Tests.Components
 {
     public class GenerationQueueComponentTests : Bunit.TestContext
     {
-        private readonly Mock<GenerationQueueService> _queueServiceMock;
+        private readonly Mock<IGenerationQueueService> _queueServiceMock;
         private readonly Mock<ILogger<GenerationQueue>> _loggerMock;
 
         public GenerationQueueComponentTests()
         {
-            _queueServiceMock = new Mock<GenerationQueueService>(Mock.Of<IServiceScopeFactory>(), Mock.Of<ILogger<GenerationQueueService>>());
+            _queueServiceMock = new Mock<IGenerationQueueService>();
             _loggerMock = new Mock<ILogger<GenerationQueue>>();
 
             // Register services

@@ -6,6 +6,7 @@ using Moq;
 using VideoGenerationApp.Configuration;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Services;
+using VideoGenerationApp.Services.Generation;
 using Xunit;
 
 namespace VideoGenerationApp.Tests.Services
@@ -14,8 +15,8 @@ namespace VideoGenerationApp.Tests.Services
     {
         private readonly Mock<IServiceScopeFactory> _serviceScopeFactoryMock;
         private readonly Mock<ILogger<GenerationQueueService>> _loggerMock;
-        private readonly Mock<ComfyUIAudioService> _comfyUIAudioServiceMock;
-        private readonly Mock<ComfyUIImageService> _comfyUIImageServiceMock;
+        private readonly Mock<IComfyUIAudioService> _comfyUIAudioServiceMock;
+        private readonly Mock<IComfyUIImageService> _comfyUIImageServiceMock;
         private readonly GenerationQueueService _generationQueueService;
 
         public GenerationQueueServiceTests()
@@ -24,26 +25,28 @@ namespace VideoGenerationApp.Tests.Services
             _loggerMock = new Mock<ILogger<GenerationQueueService>>();
             
             // Mock ComfyUIAudioService
-            _comfyUIAudioServiceMock = new Mock<ComfyUIAudioService>(
-                Mock.Of<HttpClient>(),
-                Mock.Of<ILogger<ComfyUIAudioService>>(),
-                Mock.Of<IWebHostEnvironment>(),
-                Mock.Of<IOptions<ComfyUISettings>>());
-            
+            _comfyUIAudioServiceMock = new Mock<IComfyUIAudioService>();
+            _comfyUIAudioServiceMock.Setup(x => x.GetWorkflowConfig())
+                .Returns(new AudioWorkflowConfig());
+            _comfyUIAudioServiceMock.Setup(_comfyUIAudioServiceMock => _comfyUIAudioServiceMock.ConvertWorkflowToComfyUIFormat(It.IsAny<ComfyUIAudioWorkflow>())).Callback<ComfyUIAudioWorkflow>(workflow =>
+            {}).Returns(new Dictionary<string, object>());
+
             // Mock ComfyUIImageService
-            _comfyUIImageServiceMock = new Mock<ComfyUIImageService>(
-                Mock.Of<HttpClient>(),
-                Mock.Of<ILogger<ComfyUIImageService>>(),
-                Mock.Of<IWebHostEnvironment>(),
-                Mock.Of<IOptions<ComfyUISettings>>());
-            
+            _comfyUIImageServiceMock = new Mock<IComfyUIImageService>();
+            _comfyUIImageServiceMock.Setup(x => x.GetWorkflowConfig())
+                .Returns(new ImageWorkflowConfig());
+            _comfyUIImageServiceMock.Setup(_comfyUIImageServiceMock => _comfyUIImageServiceMock.SubmitWorkflowAsync(It.IsAny<object>()))
+                .ReturnsAsync("test-prompt-id-456");
+            _comfyUIImageServiceMock.Setup(_comfyUIImageServiceMock => _comfyUIImageServiceMock.ConvertWorkflowToComfyUIFormat(It.IsAny<ComfyUIAudioWorkflow>())).Callback<ComfyUIAudioWorkflow>(workflow => 
+            { }).Returns(new Dictionary<string, object>());
+
             // Setup service scope mocking
             var serviceProviderMock = new Mock<IServiceProvider>();
             var serviceScopeMock = new Mock<IServiceScope>();
             
-            serviceProviderMock.Setup(x => x.GetService(typeof(ComfyUIAudioService)))
+            serviceProviderMock.Setup(x => x.GetService(typeof(IComfyUIAudioService)))
                 .Returns(_comfyUIAudioServiceMock.Object);
-            serviceProviderMock.Setup(x => x.GetService(typeof(ComfyUIImageService)))
+            serviceProviderMock.Setup(x => x.GetService(typeof(IComfyUIImageService)))
                 .Returns(_comfyUIImageServiceMock.Object);
             serviceScopeMock.Setup(x => x.ServiceProvider).Returns(serviceProviderMock.Object);
             _serviceScopeFactoryMock.Setup(x => x.CreateScope()).Returns(serviceScopeMock.Object);
@@ -56,7 +59,52 @@ namespace VideoGenerationApp.Tests.Services
             _comfyUIImageServiceMock.Setup(x => x.SubmitWorkflowAsync(It.IsAny<Dictionary<string, object>>()))
                 .ReturnsAsync("test-prompt-id-456");
             
-            _generationQueueService = new GenerationQueueService(_serviceScopeFactoryMock.Object, _loggerMock.Object);
+            // Mock the generation service factory and services
+            var audioServiceMock = new Mock<IGenerationService<AudioWorkflowConfig>>();
+            audioServiceMock.Setup(x => x.CreateTask(It.IsAny<string>(), It.IsAny<AudioWorkflowConfig>(), It.IsAny<string>()))
+                .Returns((string name, AudioWorkflowConfig config, string notes) => new GenerationTask
+                {
+                    Name = name,
+                    AudioConfig = config,
+                    Type = GenerationType.Audio,
+                    Notes = notes,
+                    Status = GenerationStatus.Pending
+                });
+            audioServiceMock.Setup(x => x.SubmitTaskAsync(It.IsAny<GenerationTask>(), It.IsAny<AudioWorkflowConfig>()))
+                .ReturnsAsync("test-prompt-id-123");
+
+            var imageServiceMock = new Mock<IGenerationService<ImageWorkflowConfig>>();
+            imageServiceMock.Setup(x => x.CreateTask(It.IsAny<string>(), It.IsAny<ImageWorkflowConfig>(), It.IsAny<string>()))
+                .Returns((string name, ImageWorkflowConfig config, string notes) => new GenerationTask
+                {
+                    Name = name,
+                    ImageConfig = config,
+                    Type = GenerationType.Image,
+                    Notes = notes,
+                    Status = GenerationStatus.Pending
+                });
+            imageServiceMock.Setup(x => x.SubmitTaskAsync(It.IsAny<GenerationTask>(), It.IsAny<ImageWorkflowConfig>()))
+                .ReturnsAsync("test-prompt-id-456");
+
+            var videoServiceMock = new Mock<IGenerationService<VideoWorkflowConfig>>();
+            videoServiceMock.Setup(x => x.CreateTask(It.IsAny<string>(), It.IsAny<VideoWorkflowConfig>(), It.IsAny<string>()))
+                .Returns((string name, VideoWorkflowConfig config, string notes) => new GenerationTask
+                {
+                    Name = name,
+                    VideoConfig = config,
+                    Type = GenerationType.Video,
+                    Notes = notes,
+                    Status = GenerationStatus.Pending
+                });
+            videoServiceMock.Setup(x => x.SubmitTaskAsync(It.IsAny<GenerationTask>(), It.IsAny<VideoWorkflowConfig>()))
+                .ReturnsAsync("test-prompt-id-789");
+
+            var generationServiceFactoryMock = new Mock<IGenerationServiceFactory>();
+            generationServiceFactoryMock.Setup(x => x.GetAudioService()).Returns(audioServiceMock.Object);
+            generationServiceFactoryMock.Setup(x => x.GetImageService()).Returns(imageServiceMock.Object);
+            generationServiceFactoryMock.Setup(x => x.GetVideoService()).Returns(videoServiceMock.Object);
+            
+            _generationQueueService = new GenerationQueueService(generationServiceFactoryMock.Object, _loggerMock.Object);
         }
 
         [Fact]
