@@ -94,5 +94,14 @@ namespace VideoGenerationApp.Dto
         /// Get the file prefix for this generation type
         /// </summary>
         protected abstract string FilePrefix { get; }
+        
+        /// <summary>
+        /// Gets a summary of file information for debugging/logging
+        /// Virtual method that can be overridden by specific task types
+        /// </summary>
+        public virtual string GetFileInfoSummary()
+        {
+            return "No file information available";
+        }
     }
 }

@@ -5,6 +5,7 @@
 @using VideoGenerationApp.Services.Generation
 @using VideoGenerationApp.Dto
 @inject VideoGenerationWorkflow VideoWorkflow
+@inject IGeneratedFileService FileService
 @inject IGenerationQueueService QueueService
 @inject OllamaOutputState OutputState
 @inject ILogger<GenerateVideo> Logger
@@ -83,11 +84,15 @@
                             </label>
                             <select id="audioFile" class="form-control" @bind="videoConfig.AudioFilePath">
                                 <option value="">-- No Audio --</option>
-                                @foreach (var task in audioTasks)
+                                @foreach (var file in audioFiles)
                                 {
-                                    <option value="@task.GeneratedFilePath">@task.Name (@GetDuration(task))</option>
+                                    <option value="@file.FilePath">@file.DisplayText</option>
                                 }
                             </select>
+                            @if (audioFiles.Any())
+                            {
+                                <small class="form-text text-muted">@audioFiles.Count audio file(s) available</small>
+                            }
                         </div>
                         
                         <div class="form-group">
@@ -97,11 +102,15 @@
                             </label>
                             <select id="imageFile" class="form-control" @bind="videoConfig.ImageFilePath" @bind:after="OnImageSelectionChanged">
                                 <option value="">-- Generate from prompt --</option>
-                                @foreach (var task in imageTasks)
+                                @foreach (var file in imageFiles)
                                 {
-                                    <option value="@task.GeneratedFilePath">@task.Name</option>
+                                    <option value="@file.FilePath">@file.DisplayText</option>
                                 }
                             </select>
+                            @if (imageFiles.Any())
+                            {
+                                <small class="form-text text-muted">@imageFiles.Count image file(s) available</small>
+                            }
                         </div>
                         
                         <div class="form-group">
@@ -284,13 +293,13 @@
     private string? errorMessage;
     private bool isGenerating;
     private bool isLoadingModels;
-    private List<GenerationTask> audioTasks = new();
-    private List<GenerationTask> imageTasks = new();
+    private List<GeneratedFileInfo> audioFiles = new();
+    private List<GeneratedFileInfo> imageFiles = new();
     private List<string> availableModels = new List<string>();
 
     protected override async Task OnInitializedAsync()
     {
-        await LoadCompletedTasks();
+        await LoadAvailableFiles();
         
         // Initialize with Ollama visual description if available
         if (OutputState.ParsedOutput != null)
@@ -318,10 +327,10 @@
             isLoadingModels = true;
             StateHasChanged();
             
-            Logger.LogInformation("Loading available video models from ComfyUI via QueueService");
+            Logger.LogInformation("Loading available video models from ComfyUI via VideoWorkflow");
             
-            // Get models from the queue service which has access to ComfyUI services
-            availableModels = await QueueService.GetVideoModelsAsync();
+            // Get models from the video workflow which has access to ComfyUI services
+            availableModels = await VideoWorkflow.GetAvailableModelsAsync();
             
             // If current checkpoint is not in the list and list is not empty, select the first one
             if (availableModels.Any() && !availableModels.Contains(videoConfig.CheckpointName))
@@ -344,15 +353,26 @@
         }
     }
 
-    private async Task LoadCompletedTasks()
+    private async Task LoadAvailableFiles()
     {
-        var allTasks = await QueueService.GetAllTasksAsync();
-        audioTasks = allTasks.Where(t => t.Type == GenerationType.Audio && 
-                                         t.Status == GenerationStatus.Completed && 
-                                         !string.IsNullOrEmpty(t.GeneratedFilePath)).ToList();
-        imageTasks = allTasks.Where(t => t.Type == GenerationType.Image && 
-                                         t.Status == GenerationStatus.Completed && 
-                                         !string.IsNullOrEmpty(t.GeneratedFilePath)).ToList();
+        try
+        {
+            Logger.LogInformation("Loading available audio and image files from wwwroot");
+            
+            // Load files using the dedicated file service
+            audioFiles = await FileService.GetAudioFilesAsync();
+            imageFiles = await FileService.GetImageFilesAsync();
+            
+            Logger.LogInformation("Loaded {AudioCount} audio files and {ImageCount} image files", 
+                audioFiles.Count, imageFiles.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading available files");
+            // Continue with empty lists if loading fails
+            audioFiles = new List<GeneratedFileInfo>();
+            imageFiles = new List<GeneratedFileInfo>();
+        }
     }
 
     private void UseOllamaPrompt()
@@ -389,25 +409,16 @@
         StateHasChanged();
     }
 
-    private string GetDuration(GenerationTask task)
-    {
-        if (task.AudioConfig != null)
-        {
-            return $"{task.AudioConfig.AudioDurationSeconds}s";
-        }
-        return "unknown";
-    }
-
     private string GetSelectedAudioName()
     {
-        var task = audioTasks.FirstOrDefault(t => t.GeneratedFilePath == videoConfig.AudioFilePath);
-        return task?.Name ?? "Unknown";
+        var file = audioFiles.FirstOrDefault(f => f.FilePath == videoConfig.AudioFilePath);
+        return file?.Name ?? "Unknown";
     }
 
     private string GetSelectedImageName()
     {
-        var task = imageTasks.FirstOrDefault(t => t.GeneratedFilePath == videoConfig.ImageFilePath);
-        return task?.Name ?? "Unknown";
+        var file = imageFiles.FirstOrDefault(f => f.FilePath == videoConfig.ImageFilePath);
+        return file?.Name ?? "Unknown";
     }
 
     private void OnImageSelectionChanged()
@@ -415,11 +426,11 @@
         // Auto-update video dimensions when image is selected
         if (!string.IsNullOrEmpty(videoConfig.ImageFilePath))
         {
-            var task = imageTasks.FirstOrDefault(t => t.GeneratedFilePath == videoConfig.ImageFilePath);
-            if (task?.ImageConfig != null)
+            var file = imageFiles.FirstOrDefault(f => f.FilePath == videoConfig.ImageFilePath);
+            if (file?.Width.HasValue == true && file?.Height.HasValue == true)
             {
-                videoConfig.Width = task.ImageConfig.Width;
-                videoConfig.Height = task.ImageConfig.Height;
+                videoConfig.Width = file.Width.Value;
+                videoConfig.Height = file.Height.Value;
                 StateHasChanged();
             }
         }
@@ -427,12 +438,12 @@
 
     private float GetSelectedAudioDuration()
     {
-        var task = audioTasks.FirstOrDefault(t => t.GeneratedFilePath == videoConfig.AudioFilePath);
-        if (task?.AudioConfig != null)
+        var file = audioFiles.FirstOrDefault(f => f.FilePath == videoConfig.AudioFilePath);
+        if (file?.Duration.HasValue == true)
         {
             // Auto-update duration when audio is selected
-            videoConfig.DurationSeconds = task.AudioConfig.AudioDurationSeconds;
-            return task.AudioConfig.AudioDurationSeconds;
+            videoConfig.DurationSeconds = file.Duration.Value;
+            return file.Duration.Value;
         }
         return videoConfig.DurationSeconds;
     }
@@ -461,8 +472,8 @@
             if (taskName.Length > 80)
                 taskName = taskName.Substring(0, 77) + "...";
 
-            // Queue the generation
-            var taskId = await QueueService.QueueVideoGenerationAsync(taskName, videoConfig);
+            // Use the new workflow service instead of the queue service directly
+            var taskId = await VideoWorkflow.GenerateAsync(taskName, videoConfig);
 
             // Show success message
             await JSRuntime.InvokeVoidAsync("alert",

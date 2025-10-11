@@ -12,14 +12,17 @@ namespace VideoGenerationApp.Services
     public class ComfyUIImageService : ComfyUIServiceBase, IComfyUIImageService
     {
         private ImageWorkflowConfig _workflowConfig = new();
+        private readonly IComfyUIFileService _fileService;
 
         public ComfyUIImageService(
             IComfyUIApiClient comfyUIClient, 
             ILogger<ComfyUIImageService> logger, 
             IWebHostEnvironment environment,
-            IOptions<ComfyUISettings> settings) 
+            IOptions<ComfyUISettings> settings,
+            IComfyUIFileService fileService) 
             : base(comfyUIClient, logger, environment, settings)
         {
+            _fileService = fileService;
         }
 
         /// <summary>

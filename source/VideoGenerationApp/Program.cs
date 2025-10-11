@@ -5,6 +5,7 @@ using VideoGenerationApp.Configuration;
 using VideoGenerationApp.Logging;
 using Microsoft.Extensions.Options;
 using VideoGenerationApp.Dto;
+using ComfyUI.Client.Extensions;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -19,6 +20,9 @@ builder.Logging.AddConsoleFormatter<CustomTimestampConsoleFormatter, Microsoft.E
 // Configure settings
 builder.Services.Configure<ComfyUISettings>(
     builder.Configuration.GetSection("ComfyUI"));
+
+// Add ComfyUI Client
+builder.Services.AddComfyUIClient(builder.Configuration);
 
 // Add services to the container.
 builder.Services.AddRazorComponents()
@@ -39,42 +43,21 @@ builder.Services.AddScoped<IOllamaService, OllamaService>(sp =>
     return new OllamaService(factory.CreateClient("Ollama"), logger);
 });
 
-// Register ComfyUI audio service
-builder.Services.AddScoped<IComfyUIAudioService, ComfyUIAudioService>(sp =>
-{
-    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-    var logger = sp.GetRequiredService<ILogger<ComfyUIAudioService>>();
-    var environment = sp.GetRequiredService<IWebHostEnvironment>();
-    var settings = sp.GetRequiredService<IOptions<ComfyUISettings>>();
-    return new ComfyUIAudioService(httpClientFactory.CreateClient(), logger, environment, settings);
-});
+// Register ComfyUI services with the new client
+builder.Services.AddScoped<IComfyUIFileService, ComfyUIFileService>();
+builder.Services.AddScoped<IComfyUIAudioService, ComfyUIAudioService>();
+builder.Services.AddScoped<IComfyUIImageService, ComfyUIImageService>();
+builder.Services.AddScoped<IComfyUIVideoService, ComfyUIVideoService>();
 
-// Register ComfyUI image service
-builder.Services.AddScoped<IComfyUIImageService, ComfyUIImageService>(sp =>
-{
-    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-    var logger = sp.GetRequiredService<ILogger<ComfyUIImageService>>();
-    var environment = sp.GetRequiredService<IWebHostEnvironment>();
-    var settings = sp.GetRequiredService<IOptions<ComfyUISettings>>();
-    return new ComfyUIImageService(httpClientFactory.CreateClient(), logger, environment, settings);
-});
+// Register file services
+builder.Services.AddScoped<IGeneratedFileService, GeneratedFileService>();
 
-// Register ComfyUI video service
-builder.Services.AddScoped<IComfyUIVideoService, ComfyUIVideoService>(sp =>
-{
-    var httpClientFactory = sp.GetRequiredService<IHttpClientFactory>();
-    var logger = sp.GetRequiredService<ILogger<ComfyUIVideoService>>();
-    var environment = sp.GetRequiredService<IWebHostEnvironment>();
-    var settings = sp.GetRequiredService<IOptions<ComfyUISettings>>();
-    return new ComfyUIVideoService(httpClientFactory.CreateClient(), logger, environment, settings);
-});
+// Register Generation Workflow services (scoped) - these depend on the queue service
+builder.Services.AddScoped<AudioGenerationWorkflow>();
+builder.Services.AddScoped<ImageGenerationWorkflow>();
+builder.Services.AddScoped<VideoGenerationWorkflow>();
 
-// Register Generation Services
-builder.Services.AddSingleton<IGenerationService<AudioWorkflowConfig>, AudioGenerationService>();
-builder.Services.AddSingleton<IGenerationService<ImageWorkflowConfig>, ImageGenerationService>();
-builder.Services.AddSingleton<IGenerationService<VideoWorkflowConfig>, VideoGenerationService>();
-
-// Register Generation Queue Service as hosted service
+// Register Generation Queue Service as singleton hosted service
 builder.Services.AddSingleton<GenerationQueueService>();
 builder.Services.AddSingleton<IGenerationQueueService>(provider => provider.GetRequiredService<GenerationQueueService>());
 builder.Services.AddHostedService<GenerationQueueService>(provider => provider.GetRequiredService<GenerationQueueService>());

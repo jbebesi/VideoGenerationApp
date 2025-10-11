@@ -217,7 +217,7 @@ public class ComfyUIApiClient : IComfyUIApiClient
     }
 
     // POST endpoints implementation
-    public async Task<UploadResponse> UploadImageAsync(byte[] imageData, string filename, string? subfolder = null, string? type = null, bool overwrite = false, CancellationToken cancellationToken = default)
+    public async Task<UploadResponse> UploadFileAsync(byte[] imageData, string filename, string? subfolder = null, string? type = null, bool overwrite = false, CancellationToken cancellationToken = default)
     {
         if (imageData == null || imageData.Length == 0)
             throw new ArgumentException("Image data cannot be null or empty", nameof(imageData));

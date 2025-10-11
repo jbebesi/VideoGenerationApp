@@ -11,4 +11,8 @@
     <Folder Include="wwwroot\image\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\ComfyUI.Client\ComfyUI.Client.csproj" />
+  </ItemGroup>
+
 </Project>

@@ -169,7 +169,7 @@ namespace VideoGenerationApp.Services.Generation
                 
                 _logger.LogDebug("Uploading image to ComfyUI: {Filename} ({Size} bytes)", filename, imageBytes.Length);
                 
-                var uploadResponse = await _comfyUIClient.UploadImageAsync(
+                var uploadResponse = await _comfyUIClient.UploadFileAsync(
                     imageBytes, 
                     filename, 
                     subfolder: "input", // Upload to input subfolder
@@ -219,7 +219,7 @@ namespace VideoGenerationApp.Services.Generation
                 
                 // Use the image upload endpoint for audio files since ComfyUI doesn't have a dedicated audio upload
                 // The file will be stored in the input directory and can be referenced by audio nodes
-                var uploadResponse = await _comfyUIClient.UploadImageAsync(
+                var uploadResponse = await _comfyUIClient.UploadFileAsync(
                     audioBytes, 
                     filename, 
                     subfolder: "input", // Upload to input subfolder

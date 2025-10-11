@@ -17,6 +17,26 @@ namespace VideoGenerationApp.Dto
         /// </summary>
         public VideoWorkflowConfig Config { get; set; }
         
+        /// <summary>
+        /// Full resolved path to the image file (if provided)
+        /// </summary>
+        public string? ImageFullPath { get; private set; }
+        
+        /// <summary>
+        /// Full resolved path to the audio file (if provided)
+        /// </summary>
+        public string? AudioFullPath { get; private set; }
+        
+        /// <summary>
+        /// Uploaded filename for the image in ComfyUI (if uploaded)
+        /// </summary>
+        public string? UploadedImageFilename { get; private set; }
+        
+        /// <summary>
+        /// Uploaded filename for the audio in ComfyUI (if uploaded)
+        /// </summary>
+        public string? UploadedAudioFilename { get; private set; }
+        
         public override GenerationType Type => GenerationType.Video;
         protected override string OutputSubfolder => "video";
         protected override string FilePrefix => "video";
@@ -39,35 +59,33 @@ namespace VideoGenerationApp.Dto
             try
             {
                 // Upload image file to ComfyUI if provided
-                string? uploadedImageFilename = null;
                 if (!string.IsNullOrEmpty(Config.ImageFilePath))
                 {
-                    uploadedImageFilename = await UploadImageToComfyUIAsync(Config.ImageFilePath);
-                    if (uploadedImageFilename == null)
+                    UploadedImageFilename = await UploadImageToComfyUIAsync(Config.ImageFilePath);
+                    if (UploadedImageFilename == null)
                     {
-                        throw new InvalidOperationException($"Failed to upload image file {Config.ImageFilePath} to ComfyUI");
+                        throw new InvalidOperationException($"Failed to upload image file {Config.ImageFilePath} to ComfyUI. Full path: {ImageFullPath}");
                     }
                 }
 
                 // Upload audio file to ComfyUI if provided
-                string? uploadedAudioFilename = null;
                 if (!string.IsNullOrEmpty(Config.AudioFilePath))
                 {
-                    uploadedAudioFilename = await UploadAudioToComfyUIAsync(Config.AudioFilePath);
-                    if (uploadedAudioFilename == null)
+                    UploadedAudioFilename = await UploadAudioToComfyUIAsync(Config.AudioFilePath);
+                    if (UploadedAudioFilename == null)
                     {
-                        throw new InvalidOperationException($"Failed to upload audio file {Config.AudioFilePath} to ComfyUI");
+                        throw new InvalidOperationException($"Failed to upload audio file {Config.AudioFilePath} to ComfyUI. Full path: {AudioFullPath}");
                     }
                 }
 
                 // Update the config with uploaded filenames for the workflow
                 var workflowConfig = Config;
-                if (uploadedImageFilename != null || uploadedAudioFilename != null)
+                if (UploadedImageFilename != null || UploadedAudioFilename != null)
                 {
                     workflowConfig = new VideoWorkflowConfig
                     {
-                        ImageFilePath = uploadedImageFilename ?? Config.ImageFilePath,
-                        AudioFilePath = uploadedAudioFilename ?? Config.AudioFilePath,
+                        ImageFilePath = UploadedImageFilename ?? Config.ImageFilePath,
+                        AudioFilePath = UploadedAudioFilename ?? Config.AudioFilePath,
                         TextPrompt = Config.TextPrompt,
                         DurationSeconds = Config.DurationSeconds,
                         Width = Config.Width,
@@ -92,7 +110,7 @@ namespace VideoGenerationApp.Dto
             }
             catch
             {
-                return null;
+                throw;
             }
         }
         
@@ -174,7 +192,7 @@ namespace VideoGenerationApp.Dto
         {
             try
             {
-                // Resolve the full path - handle both absolute and relative paths
+                // Resolve the full path - handle both absolute and relative paths cross-platform
                 string fullImagePath;
                 if (Path.IsPathRooted(imageFilePath))
                 {
@@ -182,9 +200,18 @@ namespace VideoGenerationApp.Dto
                 }
                 else
                 {
+                    // Normalize path separators for cross-platform compatibility
+                    var normalizedPath = imageFilePath.Replace('\\', Path.DirectorySeparatorChar)
+                                                     .Replace('/', Path.DirectorySeparatorChar)
+                                                     .TrimStart(Path.DirectorySeparatorChar);
+                    
                     // If it's a relative path, assume it's relative to wwwroot
-                    fullImagePath = Path.Combine(_webHostEnvironment.WebRootPath, imageFilePath.TrimStart('/'));
+                    fullImagePath = Path.Combine(_webHostEnvironment.WebRootPath, normalizedPath);
                 }
+
+                // Normalize the final path and store it
+                fullImagePath = Path.GetFullPath(fullImagePath);
+                ImageFullPath = fullImagePath;
 
                 if (!File.Exists(fullImagePath))
                 {
@@ -194,10 +221,17 @@ namespace VideoGenerationApp.Dto
                 var imageBytes = await File.ReadAllBytesAsync(fullImagePath);
                 var filename = Path.GetFileName(fullImagePath);
                 
-                var uploadResponse = await _comfyUIClient.UploadImageAsync(
+                // Validate file is an image by checking extension
+                var extension = Path.GetExtension(filename).ToLowerInvariant();
+                var validImageExtensions = new[] { ".jpg", ".jpeg", ".png", ".bmp", ".gif", ".tiff", ".webp" };
+                if (!validImageExtensions.Contains(extension))
+                {
+                    return null;
+                }
+                
+                var uploadResponse = await _comfyUIClient.UploadFileAsync(
                     imageBytes, 
                     filename, 
-                    subfolder: "input",
                     overwrite: true
                 );
 
@@ -216,7 +250,7 @@ namespace VideoGenerationApp.Dto
         {
             try
             {
-                // Resolve the full path - handle both absolute and relative paths
+                // Resolve the full path - handle both absolute and relative paths cross-platform
                 string fullAudioPath;
                 if (Path.IsPathRooted(audioFilePath))
                 {
@@ -224,9 +258,18 @@ namespace VideoGenerationApp.Dto
                 }
                 else
                 {
+                    // Normalize path separators for cross-platform compatibility
+                    var normalizedPath = audioFilePath.Replace('\\', Path.DirectorySeparatorChar)
+                                                     .Replace('/', Path.DirectorySeparatorChar)
+                                                     .TrimStart(Path.DirectorySeparatorChar);
+                    
                     // If it's a relative path, assume it's relative to wwwroot
-                    fullAudioPath = Path.Combine(_webHostEnvironment.WebRootPath, audioFilePath.TrimStart('/'));
+                    fullAudioPath = Path.Combine(_webHostEnvironment.WebRootPath, normalizedPath);
                 }
+
+                // Normalize the final path and store it
+                fullAudioPath = Path.GetFullPath(fullAudioPath);
+                AudioFullPath = fullAudioPath;
 
                 if (!File.Exists(fullAudioPath))
                 {
@@ -236,11 +279,19 @@ namespace VideoGenerationApp.Dto
                 var audioBytes = await File.ReadAllBytesAsync(fullAudioPath);
                 var filename = Path.GetFileName(fullAudioPath);
                 
+                // Validate file is an audio file by checking extension
+                var extension = Path.GetExtension(filename).ToLowerInvariant();
+                var validAudioExtensions = new[] { ".wav", ".mp3", ".flac", ".ogg", ".m4a", ".aac", ".wma" };
+                if (!validAudioExtensions.Contains(extension))
+                {
+                    return null;
+                }
+                
                 // Use the image upload endpoint for audio files since ComfyUI doesn't have a dedicated audio upload
-                var uploadResponse = await _comfyUIClient.UploadImageAsync(
+                // The file will be stored in the input directory and can be referenced by audio nodes
+                var uploadResponse = await _comfyUIClient.UploadFileAsync(
                     audioBytes, 
                     filename, 
-                    subfolder: "input",
                     type: "input",
                     overwrite: true
                 );
@@ -251,6 +302,26 @@ namespace VideoGenerationApp.Dto
             {
                 return null;
             }
+        }
+        
+        /// <summary>
+        /// Gets a summary of file information for debugging/logging
+        /// </summary>
+        public override string GetFileInfoSummary()
+        {
+            var summary = new List<string>();
+            
+            if (!string.IsNullOrEmpty(Config.ImageFilePath))
+            {
+                summary.Add($"Image: {Config.ImageFilePath} -> {ImageFullPath} -> {UploadedImageFilename ?? "not uploaded"}");
+            }
+            
+            if (!string.IsNullOrEmpty(Config.AudioFilePath))
+            {
+                summary.Add($"Audio: {Config.AudioFilePath} -> {AudioFullPath} -> {UploadedAudioFilename ?? "not uploaded"}");
+            }
+            
+            return summary.Any() ? string.Join("; ", summary) : "No files";
         }
     }
 }

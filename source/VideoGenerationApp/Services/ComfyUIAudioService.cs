@@ -12,14 +12,17 @@ namespace VideoGenerationApp.Services
     public class ComfyUIAudioService : ComfyUIServiceBase, IComfyUIAudioService
     {
         private AudioWorkflowConfig _workflowConfig = new();
+        private readonly IComfyUIFileService _fileService;
 
         public ComfyUIAudioService(
             IComfyUIApiClient comfyUIClient, 
             ILogger<ComfyUIAudioService> logger, 
             IWebHostEnvironment environment,
-            IOptions<ComfyUISettings> settings) 
+            IOptions<ComfyUISettings> settings,
+            IComfyUIFileService fileService) 
             : base(comfyUIClient, logger, environment, settings)
         {
+            _fileService = fileService;
         }
 
         /// <summary>

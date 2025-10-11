@@ -26,7 +26,7 @@ public interface IComfyUIApiClient
     Task<QueueResponse> GetQueueAsync(CancellationToken cancellationToken = default);
 
     // POST endpoints
-    Task<UploadResponse> UploadImageAsync(byte[] imageData, string filename, string? subfolder = null, string? type = null, bool overwrite = false, CancellationToken cancellationToken = default);
+    Task<UploadResponse> UploadFileAsync(byte[] imageData, string filename, string? subfolder = null, string? type = null, bool overwrite = false, CancellationToken cancellationToken = default);
     Task<UploadResponse> UploadMaskAsync(byte[] imageData, string filename, string originalRef, bool overwrite = false, CancellationToken cancellationToken = default);
     Task<PromptResponse> SubmitPromptAsync(PromptRequest request, CancellationToken cancellationToken = default);
     Task ManageQueueAsync(QueueRequest request, CancellationToken cancellationToken = default);
