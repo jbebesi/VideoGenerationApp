@@ -12,77 +12,114 @@ namespace VideoGenerationApp.Tests.Integration
 {
     public class AudioGenerationWorkflowTests
     {
-        private readonly Mock<HttpClient> _mockHttpClient;
-        private readonly Mock<ILogger<OllamaService>> _mockOllamaLogger;
-        private readonly Mock<ILogger<ComfyUIAudioService>> _mockComfyUILogger;
-        private readonly Mock<ILogger<GenerationQueueService>> _mockQueueLogger;
-        private readonly Mock<IServiceScopeFactory> _mockScopeFactory;
-        private readonly ServiceCollection _services;
+        private readonly Mock<IComfyUIAudioService> _mockAudioService;
+        private readonly Mock<IGenerationQueueService> _mockQueueService;
+        private readonly Mock<ILogger<AudioGenerationWorkflow>> _mockLogger;
 
         public AudioGenerationWorkflowTests()
         {
-            _mockHttpClient = new Mock<HttpClient>();
-            _mockOllamaLogger = new Mock<ILogger<OllamaService>>();
-            _mockComfyUILogger = new Mock<ILogger<ComfyUIAudioService>>();
-            _mockQueueLogger = new Mock<ILogger<GenerationQueueService>>();
-            _mockScopeFactory = new Mock<IServiceScopeFactory>();
-            _services = new ServiceCollection();
+            _mockAudioService = new Mock<IComfyUIAudioService>();
+            _mockQueueService = new Mock<IGenerationQueueService>();
+            _mockLogger = new Mock<ILogger<AudioGenerationWorkflow>>();
         }
 
-        [Fact(Skip = "Test requires proper HttpClient mocking with BaseAddress configuration. Mocked HttpClient causes NullReferenceException in OllamaService.")]
-        public async Task CompleteAudioGenerationWorkflow_WorksCorrectly_WithMockedServices()
+        [Fact]
+        public async Task AudioGenerationWorkflow_GeneratesSuccessfully_WithValidConfig()
         {
             // Arrange
-            var ollamaService = CreateMockedOllamaService();
-            var comfyUIService = CreateMockedComfyUIService();
-            var queueService = new GenerationQueueService(_mockScopeFactory.Object, _mockQueueLogger.Object);
-
-            var userPrompt = "Create upbeat pop music with female vocals";
-            var expectedVideoScene = new VideoSceneOutput
+            var workflow = new AudioGenerationWorkflow(_mockQueueService.Object, _mockAudioService.Object, _mockLogger.Object);
+            
+            var config = new AudioWorkflowConfig
             {
-                narrative = "An upbeat pop song with energetic female vocals",
-                tone = "positive",
-                emotion = "excited",
-                voice_style = "female, energetic",
-                audio = new AudioSection
-                {
-                    background_music = "upbeat pop instrumental",
-                    audio_mood = "energetic",
-                    sound_effects = new List<string> { "synthesizer", "drums" }
-                }
+                Tags = "pop, female voice, catchy melody",
+                Lyrics = "[verse]\nDancing through the night\n[chorus]\nFeel the music bright",
+                AudioDurationSeconds = 180
             };
 
+            _mockQueueService.Setup(x => x.QueueTaskAsync(It.IsAny<GenerationTaskBase>()))
+                .ReturnsAsync("test-task-id-123");
+
             // Act
-            // Step 1: Generate video scene with Ollama
-            var formattedPrompt = ollamaService.GetFormattedPrompt(userPrompt);
-            var ollamaResponse = await ollamaService.SendPromptAsync("test-model", formattedPrompt);
-            var videoScene = ollamaService.TryParseVideoSceneOutput(ollamaResponse);
-
-            // Step 2: Queue audio generation task
-            var taskId = await queueService.QueueGenerationAsync("Test Audio Generation", new AudioWorkflowConfig());
-
-            // Step 3: Generate audio with ComfyUI
-            var audioFile = await comfyUIService.GenerateAsync(expectedVideoScene);
+            var taskId = await workflow.GenerateAsync("Test Audio Generation", config, "Test notes");
 
             // Assert
-            Assert.NotNull(formattedPrompt);
-            Assert.Contains(userPrompt, formattedPrompt);
-            Assert.NotNull(ollamaResponse);
-            Assert.NotNull(videoScene);
-            Assert.Equal("positive", videoScene.tone);
-            Assert.Equal("excited", videoScene.emotion);
-            Assert.NotNull(videoScene.audio);
-            Assert.Equal("upbeat pop instrumental", videoScene.audio.background_music);
+            Assert.Equal("test-task-id-123", taskId);
+            _mockQueueService.Verify(x => x.QueueTaskAsync(It.Is<GenerationTaskBase>(t => 
+                t.Name == "Test Audio Generation" && 
+                t.Type == GenerationType.Audio &&
+                t.Notes == "Test notes")), Times.Once);
+        }
 
-            Assert.NotNull(taskId);
-            Assert.NotEmpty(taskId);
+        [Fact]
+        public async Task AudioGenerationWorkflow_GetAvailableModels_CallsAudioService()
+        {
+            // Arrange
+            var workflow = new AudioGenerationWorkflow(_mockQueueService.Object, _mockAudioService.Object, _mockLogger.Object);
+            var expectedModels = new List<string> { "ace_step_v1_3.5b.safetensors", "other_model.safetensors" };
+            
+            _mockAudioService.Setup(x => x.GetAudioModelsAsync())
+                .ReturnsAsync(expectedModels);
 
-            Assert.NotNull(audioFile);
-            Assert.Equal("test-audio-output.mp3", audioFile);
+            // Act
+            var models = await workflow.GetAvailableModelsAsync();
 
-            var task = queueService.GetTask(taskId);
-            Assert.NotNull(task);
-            Assert.Equal("Test Audio Generation", task.Name);
+            // Assert
+            Assert.Equal(expectedModels, models);
+            _mockAudioService.Verify(x => x.GetAudioModelsAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task AudioGenerationWorkflow_GetCLIPModels_CallsAudioService()
+        {
+            // Arrange
+            var workflow = new AudioGenerationWorkflow(_mockQueueService.Object, _mockAudioService.Object, _mockLogger.Object);
+            var expectedModels = new List<string> { "clip-vit-large-patch14.safetensors" };
+            
+            _mockAudioService.Setup(x => x.GetCLIPModelsAsync())
+                .ReturnsAsync(expectedModels);
+
+            // Act
+            var models = await workflow.GetCLIPModelsAsync();
+
+            // Assert
+            Assert.Equal(expectedModels, models);
+            _mockAudioService.Verify(x => x.GetCLIPModelsAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task AudioGenerationWorkflow_GetVAEModels_CallsAudioService()
+        {
+            // Arrange
+            var workflow = new AudioGenerationWorkflow(_mockQueueService.Object, _mockAudioService.Object, _mockLogger.Object);
+            var expectedModels = new List<string> { "vae-ft-mse-840000-ema-pruned.safetensors" };
+            
+            _mockAudioService.Setup(x => x.GetVAEModelsAsync())
+                .ReturnsAsync(expectedModels);
+
+            // Act
+            var models = await workflow.GetVAEModelsAsync();
+
+            // Assert
+            Assert.Equal(expectedModels, models);
+            _mockAudioService.Verify(x => x.GetVAEModelsAsync(), Times.Once);
+        }
+
+        [Fact]
+        public async Task AudioGenerationWorkflow_GetAudioEncoderModels_CallsAudioService()
+        {
+            // Arrange
+            var workflow = new AudioGenerationWorkflow(_mockQueueService.Object, _mockAudioService.Object, _mockLogger.Object);
+            var expectedModels = new List<string> { "audio_encoder_v1.safetensors" };
+            
+            _mockAudioService.Setup(x => x.GetAudioEncoderModelsAsync())
+                .ReturnsAsync(expectedModels);
+
+            // Act
+            var models = await workflow.GetAudioEncoderModelsAsync();
+
+            // Assert
+            Assert.Equal(expectedModels, models);
+            _mockAudioService.Verify(x => x.GetAudioEncoderModelsAsync(), Times.Once);
         }
 
         [Fact]
@@ -129,87 +166,28 @@ namespace VideoGenerationApp.Tests.Integration
             Assert.Contains("rock", rockTextNode.widgets_values[0].ToString()!);
         }
 
-        [Fact(Skip = "Test requires proper service factory mocking. Tasks fail immediately due to missing service dependencies causing NullReferenceException.")]
-        public async Task GenerationQueue_HandlesMultipleTasks_Correctly()
-        {
-            // Arrange
-            // Mock the generation service factory
-            var generationServiceFactoryMock = new Mock<IGenerationServiceFactory>();
-            
-            var queueService = new GenerationQueueService(generationServiceFactoryMock.Object, _mockQueueLogger.Object);
-
-            var config1 = new AudioWorkflowConfig { Tags = "pop, upbeat" };
-            var config2 = new AudioWorkflowConfig { Tags = "rock, intense" };
-            var config3 = new AudioWorkflowConfig { Tags = "jazz, smooth" };
-
-            // Act
-            var taskId1 = await queueService.QueueGenerationAsync("Pop Song", config1);
-            var taskId2 = await queueService.QueueGenerationAsync("Rock Song", config2);
-            var taskId3 = await queueService.QueueGenerationAsync("Jazz Song", config3);
-
-            var allTasks = queueService.GetAllTasks().ToList();
-
-            // Assert
-            Assert.Equal(3, allTasks.Count);
-            Assert.Contains(allTasks, t => t.Name == "Pop Song");
-            Assert.Contains(allTasks, t => t.Name == "Rock Song");
-            Assert.Contains(allTasks, t => t.Name == "Jazz Song");
-
-            // All should be pending initially
-            Assert.All(allTasks, t => Assert.Equal(GenerationStatus.Pending, t.Status));
-
-            // Test task cancellation
-            var cancelResult = queueService.CancelTask(taskId2);
-            Assert.True(cancelResult);
-
-            var cancelledTask = queueService.GetTask(taskId2);
-            Assert.Equal(GenerationStatus.Cancelled, cancelledTask!.Status);
-        }
-
-        [Fact(Skip = "Test expects HttpRequestException but gets InvalidOperationException due to mocked HttpClient missing BaseAddress configuration.")]
-        public async Task ErrorHandling_WorksCorrectly_ThroughoutWorkflow()
-        {
-            // Arrange
-            var failingOllamaService = CreateFailingOllamaService();
-            var comfyUIService = CreateMockedComfyUIService();
-
-            // Act & Assert
-            // Test Ollama service failure
-            await Assert.ThrowsAsync<HttpRequestException>(() => 
-                failingOllamaService.GetLocalModelsAsync());
-
-            // Test invalid video scene parsing
-            var invalidResponse = "This is not valid JSON";
-            var parsedScene = failingOllamaService.TryParseVideoSceneOutput(invalidResponse);
-            Assert.Null(parsedScene);
-
-            // Test ComfyUI configuration updates
-            var testConfig = new AudioWorkflowConfig { Tags = "test" };
-            comfyUIService.SetWorkflowConfig(testConfig);
-            var retrievedConfig = comfyUIService.GetWorkflowConfig();
-            Assert.Equal("test", retrievedConfig.Tags);
-        }
-
         [Fact]
-        public void ServiceIntegration_WorksCorrectly_WithDependencyInjection()
+        public async Task AudioGenerationWorkflow_HandlesExceptions_Gracefully()
         {
             // Arrange
-            _services.AddLogging();
-            _services.AddSingleton<HttpClient>();
-            _services.AddSingleton<OllamaService>();
-            _services.AddSingleton<IOptions<ComfyUISettings>>(provider => 
-                Options.Create(new ComfyUISettings { ApiUrl = "http://localhost:8188" }));
-
-            using var serviceProvider = _services.BuildServiceProvider();
+            var workflow = new AudioGenerationWorkflow(_mockQueueService.Object, _mockAudioService.Object, _mockLogger.Object);
+            
+            _mockAudioService.Setup(x => x.GetAudioModelsAsync())
+                .ThrowsAsync(new Exception("ComfyUI connection failed"));
 
             // Act
-            var ollamaService = serviceProvider.GetService<OllamaService>();
-            var comfyUISettings = serviceProvider.GetService<IOptions<ComfyUISettings>>();
+            var models = await workflow.GetAvailableModelsAsync();
 
             // Assert
-            Assert.NotNull(ollamaService);
-            Assert.NotNull(comfyUISettings);
-            Assert.Equal("http://localhost:8188", comfyUISettings.Value.ApiUrl);
+            Assert.Empty(models);
+            _mockLogger.Verify(
+                x => x.Log(
+                    LogLevel.Error,
+                    It.IsAny<EventId>(),
+                    It.Is<It.IsAnyType>((v, t) => v.ToString()!.Contains("Error getting audio models")),
+                    It.IsAny<Exception>(),
+                    It.IsAny<Func<It.IsAnyType, Exception?, string>>()),
+                Times.Once);
         }
 
         [Theory]
@@ -246,37 +224,23 @@ namespace VideoGenerationApp.Tests.Integration
             Assert.Equal(7.5f, samplerNode.widgets_values[3]); // CFG Scale
         }
 
-        private OllamaService CreateMockedOllamaService()
+        [Fact]
+        public void ServiceIntegration_WorksCorrectly_WithDependencyInjection()
         {
-            var mockHttpClient = new Mock<HttpClient>();
-            var service = new OllamaService(mockHttpClient.Object, _mockOllamaLogger.Object);
+            // Arrange
+            var services = new ServiceCollection();
+            services.AddLogging();
+            services.AddSingleton<IOptions<ComfyUISettings>>(provider => 
+                Options.Create(new ComfyUISettings { ApiUrl = "http://localhost:8188" }));
 
-            // Note: Since we can't easily mock HttpClient calls in this setup,
-            // we'll create a partial mock or return a real service for integration testing
-            return service;
-        }
+            using var serviceProvider = services.BuildServiceProvider();
 
-        private ComfyUIAudioService CreateMockedComfyUIService()
-        {
-            var mockHttpClient = new Mock<HttpClient>();
-            var mockEnvironment = new Mock<Microsoft.AspNetCore.Hosting.IWebHostEnvironment>();
-            var mockSettings = Mock.Of<IOptions<ComfyUISettings>>(o => 
-                o.Value == new ComfyUISettings { ApiUrl = "http://localhost:8188", TimeoutMinutes = 10 });
+            // Act
+            var comfyUISettings = serviceProvider.GetService<IOptions<ComfyUISettings>>();
 
-            var service = new ComfyUIAudioService(
-                mockHttpClient.Object,
-                _mockComfyUILogger.Object,
-                mockEnvironment.Object,
-                mockSettings);
-
-            return service;
-        }
-
-        private OllamaService CreateFailingOllamaService()
-        {
-            var mockHttpClient = new Mock<HttpClient>();
-            var service = new OllamaService(mockHttpClient.Object, _mockOllamaLogger.Object);
-            return service;
+            // Assert
+            Assert.NotNull(comfyUISettings);
+            Assert.Equal("http://localhost:8188", comfyUISettings.Value.ApiUrl);
         }
     }
 }

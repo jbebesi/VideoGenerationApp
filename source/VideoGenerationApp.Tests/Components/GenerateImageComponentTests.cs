@@ -6,6 +6,7 @@ using Moq;
 using VideoGenerationApp.Components.Pages;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Services;
+using VideoGenerationApp.Services.Generation;
 using Xunit;
 
 namespace VideoGenerationApp.Tests.Components
@@ -15,18 +16,24 @@ namespace VideoGenerationApp.Tests.Components
         private readonly Mock<IGenerationQueueService> _queueServiceMock;
         private readonly Mock<OllamaOutputState> _outputStateMock;
         private readonly Mock<ILogger<GenerateImage>> _loggerMock;
+        private readonly Mock<IComfyUIImageService> _comfyUIServiceMock;
 
         public GenerateImageComponentTests()
         {
             _queueServiceMock = new Mock<IGenerationQueueService>();
             _outputStateMock = new Mock<OllamaOutputState>();
             _loggerMock = new Mock<ILogger<GenerateImage>>();
+            _comfyUIServiceMock = new Mock<IComfyUIImageService>();
+
 
             // Setup default mock behaviors for new methods
             _queueServiceMock.Setup(x => x.GetImageModelsAsync())
                 .ReturnsAsync(new List<string>());
 
             // Register services
+
+            Services.AddSingleton(_comfyUIServiceMock.Object);
+            Services.AddScoped<ImageGenerationWorkflow>();
             Services.AddSingleton(_queueServiceMock.Object);
             Services.AddSingleton(_outputStateMock.Object);
             Services.AddSingleton(_loggerMock.Object);

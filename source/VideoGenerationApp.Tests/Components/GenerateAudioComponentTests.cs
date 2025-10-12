@@ -9,6 +9,7 @@ using VideoGenerationApp.Components.Pages;
 using VideoGenerationApp.Configuration;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Services;
+using VideoGenerationApp.Services.Generation;
 using Xunit;
 
 namespace VideoGenerationApp.Tests.Components
@@ -27,10 +28,12 @@ namespace VideoGenerationApp.Tests.Components
             var environment = Mock.Of<IWebHostEnvironment>();
             var settings = Mock.Of<IOptions<ComfyUISettings>>();
 
+
             _comfyUIServiceMock = new Mock<IComfyUIAudioService>();
             _queueServiceMock = new Mock<IGenerationQueueService>();
             _outputStateMock = new Mock<OllamaOutputState>();
             _loggerMock = new Mock<ILogger<GenerateAudio>>();
+
 
             // Setup ComfyUI service to return a default workflow config
             _comfyUIServiceMock.Setup(x => x.GetWorkflowConfig())
@@ -46,6 +49,7 @@ namespace VideoGenerationApp.Tests.Components
             Services.AddSingleton(_outputStateMock.Object);
             Services.AddSingleton(_loggerMock.Object);
             Services.AddSingleton(Mock.Of<IJSRuntime>());
+            Services.AddScoped<AudioGenerationWorkflow>();
         }
 
         [Fact]
