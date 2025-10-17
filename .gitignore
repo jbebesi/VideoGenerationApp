@@ -363,3 +363,4 @@ MigrationBackup/
 FodyWeavers.xsd
 source/VideoGenerationApp/wwwroot/audio/
 source/VideoGenerationApp/wwwroot/image/
+source/VideoGenerationApp/wwwroot/video/
