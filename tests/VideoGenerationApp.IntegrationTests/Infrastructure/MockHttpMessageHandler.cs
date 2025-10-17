@@ -22,13 +22,22 @@ namespace VideoGenerationApp.IntegrationTests.Infrastructure
         public HttpRequestMessage? LastRequest => _requests.LastOrDefault();
 
         /// <summary>
-        /// Gets the request body content as string
+        /// Gets the request body content as string from the last request
         /// </summary>
-        public async Task<string?> GetRequestBodyAsync(int index = -1)
+        public async Task<string?> GetRequestBodyAsync()
         {
             if (_requests.Count == 0) return null;
+            return await GetRequestBodyAsync(_requests.Count - 1);
+        }
 
-            var request = index < 0 ? _requests.Last() : _requests[index];
+        /// <summary>
+        /// Gets the request body content as string from a specific request index
+        /// </summary>
+        public async Task<string?> GetRequestBodyAsync(int index)
+        {
+            if (_requests.Count == 0 || index >= _requests.Count) return null;
+
+            var request = _requests[index];
             if (request.Content == null) return null;
 
             return await request.Content.ReadAsStringAsync();
