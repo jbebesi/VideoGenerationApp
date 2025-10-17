@@ -1,4 +1,7 @@
 <Solution>
+  <Folder Name="/tests/">
+    <Project Path="tests/VideoGenerationApp.IntegrationTests/VideoGenerationApp.IntegrationTests.csproj" />
+  </Folder>
   <Project Path="source/ComfyUI.Client/ComfyUI.Client.csproj" />
   <Project Path="source/VideoGenerationApp/VideoGenerationApp.csproj" />
 </Solution>
