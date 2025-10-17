@@ -8,6 +8,7 @@ using ComfyUI.Client.Models.Requests;
 using ComfyUI.Client.Models.Responses;
 using ComfyUI.Client.Validators;
 using ComfyUI.Client.Extensions;
+using System.Net;
 
 namespace ComfyUI.Client.Services;
 
@@ -98,7 +99,31 @@ public class ComfyUIApiClient : IComfyUIApiClient
         return await response.Content.ReadAsByteArrayAsync(cancellationToken);
     }
 
-    private async Task SendRequestAsync(string endpoint, HttpMethod method, object? content = null, CancellationToken cancellationToken = default)
+    public async Task<PromptResponse> SendWorkflowAsync(string content)
+    {
+        var response = await SendRequestAsync("/prompt", HttpMethod.Post, content: content);
+        var resstr = await response.Content.ReadAsStringAsync();
+        return JsonSerializer.Deserialize<PromptResponse>(resstr);
+    }
+
+    private async Task<HttpResponseMessage> SendRequestAsync(string endpoint, HttpMethod method, string content)
+    {
+        using var request = new HttpRequestMessage(method, GetEndpointUrl(endpoint));
+
+        request.Content = new StringContent(content, Encoding.UTF8, "application/json");
+        using var response = await _httpClient.SendAsync(request);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var responseContent = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException($"API request failed with status {response.StatusCode}: {responseContent}");
+        }
+        return response;
+    }
+
+
+
+    private async Task<HttpResponseMessage> SendRequestAsync(string endpoint, HttpMethod method, object? content = null, CancellationToken cancellationToken = default)
     {
         using var request = new HttpRequestMessage(method, GetEndpointUrl(endpoint));
         
@@ -115,6 +140,7 @@ public class ComfyUIApiClient : IComfyUIApiClient
             var responseContent = await response.Content.ReadAsStringAsync(cancellationToken);
             throw new HttpRequestException($"API request failed with status {response.StatusCode}: {responseContent}");
         }
+        return response;
     }
 
     // Main API endpoints implementation

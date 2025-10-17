@@ -4,13 +4,10 @@ namespace VideoGenerationApp.Services
 {
     public interface IComfyUIVideoService
     {
-        VideoWorkflowConfig GetWorkflowConfig();
-        void SetWorkflowConfig(VideoWorkflowConfig config);
-        string GetWorkflowTemplate();
+        string GetWorkflowTemplate(string resource="");
         void SetWorkflowTemplate(string template);
         Task<string?> GenerateAsync(VideoSceneOutput sceneOutput);
-        Task<string?> GenerateVideoAsync(VideoWorkflowConfig config);
-        Dictionary<string, object> ConvertWorkflowToComfyUIFormat(ComfyUIAudioWorkflow workflow);
+        Task<string?> GenerateVideoAsync(VideoWorkflowWrapper wrapper);
         Task<ComfyUIQueueStatus?> GetQueueStatusAsync();
         Task<bool> IsComfyUIRunningAsync();
         Task<List<string>> GetAvailableModelsAsync(string nodeType);

@@ -9,29 +9,28 @@ using Moq.Protected;
 using VideoGenerationApp.Configuration;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Services;
+using ComfyUI.Client.Services;
+using ComfyUI.Client.Models.Responses;
 using Xunit;
 
 namespace VideoGenerationApp.Tests.Services
 {
     public class ComfyUIAudioServiceTests
     {
-        private readonly Mock<HttpMessageHandler> _httpMessageHandlerMock;
-        private readonly HttpClient _httpClient;
         private readonly Mock<ILogger<ComfyUIAudioService>> _loggerMock;
         private readonly Mock<IWebHostEnvironment> _environmentMock;
         private readonly Mock<IOptions<ComfyUISettings>> _settingsMock;
+        private readonly Mock<IComfyUIApiClient> _apiClientMock;
+        private readonly Mock<IComfyUIFileService> _fileServiceMock;
         private readonly ComfyUIAudioService _comfyUIAudioService;
         private readonly ComfyUISettings _settings;
 
         public ComfyUIAudioServiceTests()
         {
-            _httpMessageHandlerMock = new Mock<HttpMessageHandler>();
-            _httpClient = new HttpClient(_httpMessageHandlerMock.Object)
-            {
-                BaseAddress = new Uri("http://localhost:8188")
-            };
             _loggerMock = new Mock<ILogger<ComfyUIAudioService>>();
             _environmentMock = new Mock<IWebHostEnvironment>();
+            _apiClientMock = new Mock<IComfyUIApiClient>();
+            _fileServiceMock = new Mock<IComfyUIFileService>();
             
             _settings = new ComfyUISettings
             {
@@ -45,10 +44,11 @@ namespace VideoGenerationApp.Tests.Services
             _environmentMock.Setup(x => x.WebRootPath).Returns("C:\\TestWebRoot");
 
             _comfyUIAudioService = new ComfyUIAudioService(
-                _httpClient, 
+                _apiClientMock.Object, 
                 _loggerMock.Object, 
                 _environmentMock.Object,
-                _settingsMock.Object);
+                _settingsMock.Object,
+                _fileServiceMock.Object);
         }
 
         [Fact]
@@ -148,24 +148,14 @@ namespace VideoGenerationApp.Tests.Services
         public async Task GetQueueStatusAsync_ReturnsStatus_WhenSuccessful()
         {
             // Arrange
-            var queueStatus = new ComfyUIQueueStatus
+            var queueResponse = new QueueResponse
             {
-                exec = new List<ComfyUIQueueItem>(),
-                queue = new List<ComfyUIQueueItem>()
+                QueuePending = new List<ComfyUI.Client.Models.Responses.QueueItem>(),
+                QueueRunning = new List<ComfyUI.Client.Models.Responses.QueueItem>()
             };
 
-            var jsonResponse = JsonSerializer.Serialize(queueStatus);
-            var httpResponse = new HttpResponseMessage(HttpStatusCode.OK)
-            {
-                Content = new StringContent(jsonResponse, Encoding.UTF8, "application/json")
-            };
-
-            _httpMessageHandlerMock.Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.ToString().Contains("/queue")),
-                    ItExpr.IsAny<CancellationToken>())
-                .ReturnsAsync(httpResponse);
+            _apiClientMock.Setup(x => x.GetQueueAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(queueResponse);
 
             // Act
             var result = await _comfyUIAudioService.GetQueueStatusAsync();
@@ -177,17 +167,11 @@ namespace VideoGenerationApp.Tests.Services
         }
 
         [Fact]
-        public async Task GetQueueStatusAsync_ReturnsNull_WhenHttpRequestFails()
+        public async Task GetQueueStatusAsync_ReturnsNull_WhenApiClientFails()
         {
             // Arrange
-            var httpResponse = new HttpResponseMessage(HttpStatusCode.InternalServerError);
-
-            _httpMessageHandlerMock.Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.IsAny<HttpRequestMessage>(),
-                    ItExpr.IsAny<CancellationToken>())
-                .ReturnsAsync(httpResponse);
+            _apiClientMock.Setup(x => x.GetQueueAsync(It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new HttpRequestException("Connection failed"));
 
             // Act
             var result = await _comfyUIAudioService.GetQueueStatusAsync();
@@ -212,20 +196,58 @@ namespace VideoGenerationApp.Tests.Services
                 }
             };
 
-            // Mock ComfyUI health check to return false (so it fails early)
-            var healthResponse = new HttpResponseMessage(HttpStatusCode.ServiceUnavailable);
-            _httpMessageHandlerMock.Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.Is<HttpRequestMessage>(req => req.RequestUri!.ToString().Contains("/system_stats")),
-                    ItExpr.IsAny<CancellationToken>())
-                .ReturnsAsync(healthResponse);
+            // Mock system stats to simulate ComfyUI running
+            _apiClientMock.Setup(x => x.GetSystemStatsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new SystemStatsResponse());
+
+            // Mock successful workflow submission
+            _apiClientMock.Setup(x => x.SubmitPromptAsync(It.IsAny<ComfyUI.Client.Models.Requests.PromptRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new PromptResponse { PromptId = "test-prompt-123" });
+
+            // Mock queue status to simulate completion
+            var queueResponse = new QueueResponse
+            {
+                QueuePending = new List<ComfyUI.Client.Models.Responses.QueueItem>(),
+                QueueRunning = new List<ComfyUI.Client.Models.Responses.QueueItem>()
+            };
+            _apiClientMock.Setup(x => x.GetQueueAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(queueResponse);
+
+            // Mock history response to simulate completed task with outputs
+            var historyResponse = new Dictionary<string, object>
+            {
+                ["test-prompt-123"] = new Dictionary<string, object>
+                {
+                    ["outputs"] = new Dictionary<string, object>
+                    {
+                        ["1"] = new Dictionary<string, object>
+                        {
+                            ["audio"] = new object[]
+                            {
+                                new Dictionary<string, object>
+                                {
+                                    ["filename"] = "test_audio.wav",
+                                    ["subfolder"] = "audio"
+                                }
+                            }
+                        }
+                    }
+                }
+            };
+            _apiClientMock.Setup(x => x.GetHistoryAsync("test-prompt-123", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(historyResponse);
+
+            // Mock file download
+            _apiClientMock.Setup(x => x.GetImageAsync("test_audio.wav", null, "audio", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new byte[] { 1, 2, 3, 4 }); // Mock audio file bytes
 
             // Act
             var result = await _comfyUIAudioService.GenerateAudioAsync(sceneOutput);
 
             // Assert
-            Assert.Null(result); // Should return null because ComfyUI is not running
+            // The method should return a file path when successful
+            Assert.NotNull(result);
+            Assert.StartsWith("/audio/", result);
         }
 
         [Fact]
@@ -323,40 +345,36 @@ namespace VideoGenerationApp.Tests.Services
             Assert.Equal(0.95, inputs["lyrics_strength"]);
         }
 
-        [Theory]
-        [InlineData("happy", "excited", "upbeat", "energetic", "happy, excited, upbeat, energetic")]
-        [InlineData("sad", "", "", "melancholic", "sad, melancholic")]
-        [InlineData("", "", "", "", "")]
-        public void UpdatePromptsFromScene_UpdatesTagsCorrectly(string tone, string emotion, string backgroundMusic, string audioMood, string expectedTags)
+        [Fact]
+        public async Task GetAudioModelsAsync_ReturnsModels_WhenSuccessful()
         {
             // Arrange
-            var sceneOutput = new VideoSceneOutput
+            var expectedModels = new List<string> { "ace_step_v1_3.5b.safetensors", "other_model.safetensors" };
+            
+            // Mock GetObjectInfoAsync to return a proper structure for CheckpointLoaderSimple
+            var objectInfo = new Dictionary<string, object>
             {
-                tone = tone,
-                emotion = emotion,
-                narrative = "Test narrative for audio generation",
-                audio = new AudioSection
+                ["CheckpointLoaderSimple"] = new Dictionary<string, object>
                 {
-                    background_music = backgroundMusic,
-                    audio_mood = audioMood
+                    ["input"] = new Dictionary<string, object>
+                    {
+                        ["required"] = new Dictionary<string, object>
+                        {
+                            ["ckpt_name"] = new object[] { expectedModels.ToArray() }
+                        }
+                    }
                 }
             };
+            
+            _apiClientMock.Setup(x => x.GetObjectInfoAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(objectInfo);
 
             // Act
-            // We need to call GenerateAsync to trigger the private UpdatePromptsFromScene method
-            // Since we can't call it directly, we'll test through the public method
-            var config = new AudioWorkflowConfig();
-            _comfyUIAudioService.SetWorkflowConfig(config);
+            var result = await _comfyUIAudioService.GetAudioModelsAsync();
 
-            // We can't directly test the private method, but we can verify the workflow template contains the updated values
-            // by checking if the generated workflow includes our scene data
-            var originalTemplate = _comfyUIAudioService.GetWorkflowTemplate();
-            Assert.NotNull(originalTemplate);
-        }
-
-        private void Dispose()
-        {
-            _httpClient?.Dispose();
+            // Assert
+            // The service filters models to only return ones containing "ace", "audio", or "step"
+            Assert.Contains("ace_step_v1_3.5b.safetensors", result);
         }
     }
 }

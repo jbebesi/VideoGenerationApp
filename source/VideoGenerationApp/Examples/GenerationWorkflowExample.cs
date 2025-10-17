@@ -69,21 +69,21 @@ namespace VideoGenerationApp.Examples
         /// </summary>
         public async Task<string> GenerateVideoExample()
         {
-            var config = new VideoWorkflowConfig
+            var wrapper = new VideoWorkflowWrapper
             {
                 TextPrompt = "A video of nature",
                 ImageFilePath = "/images/input.jpg", // Will be uploaded to ComfyUI
                 AudioFilePath = "/audio/background.wav", // Will be uploaded to ComfyUI
                 Width = 1024,
                 Height = 1024,
-                DurationSeconds = 5.0f,
+                DurationSeconds = 5,
                 Fps = 30,
                 // ... other video config properties
             };
 
             // Use the video workflow service (scoped)
             // It will handle file uploads and queue the task
-            var taskId = await _videoWorkflow.GenerateAsync("My Video", config, "Example generation");
+            var taskId = await _videoWorkflow.GenerateAsync("My Video", wrapper, "Example generation");
             
             return taskId;
         }

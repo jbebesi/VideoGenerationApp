@@ -35,12 +35,16 @@ namespace VideoGenerationApp.Tests.Dto
             // Assert
             var nodeTypes = result.nodes.Select(n => n.type).ToList();
             
-            Assert.Contains("ImageOnlyCheckpointLoader", nodeTypes);
             Assert.Contains("LoadImage", nodeTypes);
+            Assert.Contains("CheckpointLoaderSimple", nodeTypes);
             Assert.Contains("VAEEncode", nodeTypes);
-            Assert.Contains("SVD_img2vid_Conditioning", nodeTypes);
+            Assert.Contains("KSampler", nodeTypes);
+            Assert.Contains("CLIPTextEncode", nodeTypes);
             Assert.Contains("VAEDecode", nodeTypes);
             Assert.Contains("SaveImage", nodeTypes);
+            
+            // Should have exactly 8 nodes
+            Assert.Equal(8, result.nodes.Count);
         }
 
         [Fact]
@@ -49,70 +53,89 @@ namespace VideoGenerationApp.Tests.Dto
             // Arrange
             var config = new VideoWorkflowConfig
             {
-                CheckpointName = "custom_svd_model.safetensors"
+                CheckpointName = "custom_model.safetensors"
             };
 
             // Act
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
             // Assert
-            var checkpointNode = result.nodes.FirstOrDefault(n => n.type == "ImageOnlyCheckpointLoader");
+            var checkpointNode = result.nodes.FirstOrDefault(n => n.type == "CheckpointLoaderSimple");
             Assert.NotNull(checkpointNode);
-            Assert.Contains("custom_svd_model.safetensors", checkpointNode.widgets_values);
+            Assert.Contains("custom_model.safetensors", checkpointNode.widgets_values);
         }
 
         [Fact]
-        public void CreateWorkflow_ConfiguresSVDConditioning_WithCustomParameters()
+        public void CreateWorkflow_ConfiguresKSampler_WithCustomParameters()
         {
             // Arrange
             var config = new VideoWorkflowConfig
             {
-                Width = 512,
-                Height = 512,
-                DurationSeconds = 5.0f,
-                Fps = 24,
-                MotionIntensity = 0.8f,
-                AugmentationLevel = 0.1f,
-                Seed = 54321
+                Seed = 12345,
+                Steps = 25,
+                CFGScale = 8.5f,
+                SamplerName = "euler_ancestral",
+                Scheduler = "karras",
+                Denoise = 0.8f
             };
 
             // Act
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
             // Assert
-            var svdNode = result.nodes.FirstOrDefault(n => n.type == "SVD_img2vid_Conditioning");
-            Assert.NotNull(svdNode);
-            Assert.Equal(config.Width, svdNode.widgets_values[0]);
-            Assert.Equal(config.Height, svdNode.widgets_values[1]);
-            // numFrames = duration * fps = 5.0 * 24 = 120
-            Assert.Equal(120, svdNode.widgets_values[2]);
-            // motionBucketId should be in range based on motion intensity
-            var motionBucketId = (int)svdNode.widgets_values[3];
-            Assert.InRange(motionBucketId, 127, 255); // 0.8 intensity maps to higher motion
-            Assert.Equal(config.Fps, svdNode.widgets_values[4]);
-            Assert.Equal(config.AugmentationLevel, svdNode.widgets_values[5]);
-            Assert.Equal(config.Seed, svdNode.widgets_values[6]);
+            var ksamplerNode = result.nodes.FirstOrDefault(n => n.type == "KSampler");
+            Assert.NotNull(ksamplerNode);
+            
+            // Check that the configuration values are set
+            Assert.Equal(config.Seed, ksamplerNode.widgets_values[0]);
+            Assert.Equal(config.Steps, ksamplerNode.widgets_values[2]);
+            Assert.Equal(config.CFGScale, ksamplerNode.widgets_values[3]);
+            Assert.Equal(config.SamplerName, ksamplerNode.widgets_values[4]);
+            Assert.Equal(config.Scheduler, ksamplerNode.widgets_values[5]);
+            Assert.Equal(config.Denoise, ksamplerNode.widgets_values[6]);
         }
 
         [Fact]
-        public void CreateWorkflow_ConfiguresVideoSave_WithCustomSettings()
+        public void CreateWorkflow_ConfiguresTextEncodeNodes_WithPrompts()
         {
             // Arrange
             var config = new VideoWorkflowConfig
             {
-                Fps = 60,
-                OutputFilename = "test_video",
-                OutputFormat = "webm",
-                Quality = 85
+                AnimationStyle = "a beautiful landscape",
+                NegativePrompt = "blurry, ugly"
             };
 
             // Act
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
             // Assert
-            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "SaveImage");
-            Assert.NotNull(videoSaveNode);
-            Assert.Equal(config.OutputFilename, videoSaveNode.widgets_values[0]);
+            var textEncodeNodes = result.nodes.Where(n => n.type == "CLIPTextEncode").ToList();
+            Assert.Equal(2, textEncodeNodes.Count);
+            
+            // Find positive and negative prompt nodes by their text content
+            var positiveNode = textEncodeNodes.FirstOrDefault(n => n.widgets_values.Contains(config.AnimationStyle));
+            var negativeNode = textEncodeNodes.FirstOrDefault(n => n.widgets_values.Contains(config.NegativePrompt));
+            
+            Assert.NotNull(positiveNode);
+            Assert.NotNull(negativeNode);
+        }
+
+        [Fact]
+        public void CreateWorkflow_ConfiguresSaveImage_WithCustomSettings()
+        {
+            // Arrange
+            var config = new VideoWorkflowConfig
+            {
+                OutputFilename = "test_output"
+            };
+
+            // Act
+            var result = VideoWorkflowFactory.CreateWorkflow(config);
+
+            // Assert
+            var saveImageNode = result.nodes.FirstOrDefault(n => n.type == "SaveImage");
+            Assert.NotNull(saveImageNode);
+            Assert.Equal(config.OutputFilename, saveImageNode.widgets_values[0]);
         }
 
         [Fact]
@@ -152,95 +175,39 @@ namespace VideoGenerationApp.Tests.Dto
         }
 
         [Fact]
-        public void CreateWorkflow_IncludesAudio_WhenAudioFileProvided()
+        public void CreateWorkflow_HasCorrectNodeConnections_WhenCalled()
         {
             // Arrange
-            var config = new VideoWorkflowConfig
-            {
-                AudioFilePath = "/path/to/audio.mp3"
-            };
+            var config = new VideoWorkflowConfig();
 
             // Act
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
-            // Assert - SaveImage node doesn't support audio, so we just check it exists
-            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "SaveImage");
-            Assert.NotNull(videoSaveNode);
-            // SaveImage only has filename_prefix widget
-            Assert.Single(videoSaveNode.widgets_values);
+            // Assert
+            // Verify the workflow has the expected number of links connecting the nodes
+            Assert.NotEmpty(result.links);
+            Assert.True(result.links.Count >= 7); // Should have at least 7 connections for the 8-node workflow
         }
 
         [Fact]
-        public void CreateWorkflow_OmitsAudio_WhenNoAudioProvided()
+        public void CreateWorkflow_SetsDefaultValues_WhenNotProvided()
         {
             // Arrange
-            var config = new VideoWorkflowConfig
-            {
-                AudioFilePath = null
-            };
+            var config = new VideoWorkflowConfig(); // Use defaults
 
             // Act
             var result = VideoWorkflowFactory.CreateWorkflow(config);
 
-            // Assert - SaveImage node doesn't support audio, so we just check it exists
-            var videoSaveNode = result.nodes.FirstOrDefault(n => n.type == "SaveImage");
-            Assert.NotNull(videoSaveNode);
-            // SaveImage only has filename_prefix widget
-            Assert.Single(videoSaveNode.widgets_values);
-        }
-
-        [Fact]
-        public void CreateWorkflow_CalculatesFramesCorrectly_ForDifferentDurationsAndFps()
-        {
-            // Arrange & Act & Assert - Test multiple scenarios
-            var scenarios = new[]
-            {
-                new { Duration = 10.0f, Fps = 30, ExpectedFrames = 300 },
-                new { Duration = 5.0f, Fps = 24, ExpectedFrames = 120 },
-                new { Duration = 2.5f, Fps = 60, ExpectedFrames = 150 },
-            };
-
-            foreach (var scenario in scenarios)
-            {
-                var config = new VideoWorkflowConfig
-                {
-                    DurationSeconds = scenario.Duration,
-                    Fps = scenario.Fps
-                };
-
-                var result = VideoWorkflowFactory.CreateWorkflow(config);
-                var svdNode = result.nodes.FirstOrDefault(n => n.type == "SVD_img2vid_Conditioning");
-                
-                Assert.NotNull(svdNode);
-                Assert.Equal(scenario.ExpectedFrames, svdNode.widgets_values[2]);
-            }
-        }
-
-        [Fact]
-        public void CreateWorkflow_MapsMotionIntensityToMotionBucket_Correctly()
-        {
-            // Arrange & Act & Assert - Test motion intensity mapping
-            var testCases = new[]
-            {
-                new { Intensity = 0.0f, ExpectedMin = 127, ExpectedMax = 127 },
-                new { Intensity = 0.5f, ExpectedMin = 190, ExpectedMax = 191 },
-                new { Intensity = 1.0f, ExpectedMin = 254, ExpectedMax = 254 }
-            };
-
-            foreach (var testCase in testCases)
-            {
-                var config = new VideoWorkflowConfig
-                {
-                    MotionIntensity = testCase.Intensity
-                };
-
-                var result = VideoWorkflowFactory.CreateWorkflow(config);
-                var svdNode = result.nodes.FirstOrDefault(n => n.type == "SVD_img2vid_Conditioning");
-                
-                Assert.NotNull(svdNode);
-                var motionBucketId = (int)svdNode.widgets_values[3];
-                Assert.InRange(motionBucketId, testCase.ExpectedMin, testCase.ExpectedMax);
-            }
+            // Assert
+            var ksamplerNode = result.nodes.FirstOrDefault(n => n.type == "KSampler");
+            Assert.NotNull(ksamplerNode);
+            
+            // Should use default values
+            Assert.Equal(20, ksamplerNode.widgets_values[2]); // default steps
+            Assert.Equal(7.0f, ksamplerNode.widgets_values[3]); // default CFG scale
+            Assert.Equal("euler", ksamplerNode.widgets_values[4]); // default sampler
+            Assert.Equal("normal", ksamplerNode.widgets_values[5]); // default scheduler
+            Assert.Equal(1.0f, ksamplerNode.widgets_values[6]); // default denoise
         }
     }
 }

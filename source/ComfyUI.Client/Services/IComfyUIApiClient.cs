@@ -29,6 +29,7 @@ public interface IComfyUIApiClient
     Task<UploadResponse> UploadFileAsync(byte[] imageData, string filename, string? subfolder = null, string? type = null, bool overwrite = false, CancellationToken cancellationToken = default);
     Task<UploadResponse> UploadMaskAsync(byte[] imageData, string filename, string originalRef, bool overwrite = false, CancellationToken cancellationToken = default);
     Task<PromptResponse> SubmitPromptAsync(PromptRequest request, CancellationToken cancellationToken = default);
+    Task<PromptResponse> SendWorkflowAsync(string content);
     Task ManageQueueAsync(QueueRequest request, CancellationToken cancellationToken = default);
     Task InterruptAsync(InterruptRequest? request = null, CancellationToken cancellationToken = default);
     Task FreeMemoryAsync(FreeMemoryRequest request, CancellationToken cancellationToken = default);

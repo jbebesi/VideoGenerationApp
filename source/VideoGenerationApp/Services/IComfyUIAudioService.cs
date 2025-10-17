@@ -6,7 +6,7 @@ namespace VideoGenerationApp.Services
     {
         AudioWorkflowConfig GetWorkflowConfig();
         void SetWorkflowConfig(AudioWorkflowConfig config);
-        string GetWorkflowTemplate();
+        string GetWorkflowTemplate(string resource);
         void SetWorkflowTemplate(string template);
         Task<string?> GenerateAsync(VideoSceneOutput sceneOutput);
         Task<ComfyUIQueueStatus?> GetQueueStatusAsync();

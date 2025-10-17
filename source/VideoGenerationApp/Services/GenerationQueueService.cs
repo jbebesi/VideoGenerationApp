@@ -60,7 +60,10 @@ namespace VideoGenerationApp.Services
             
             _logger.LogInformation("Queued new {TaskType} generation task: {TaskId} - {Name}", 
                 task.Type, task.Id, task.Name);
-            
+
+
+
+
             // Submit task for processing
             await SubmitTaskAsync(task);
             
@@ -351,7 +354,7 @@ namespace VideoGenerationApp.Services
                     legacyTask.ImageConfig = imageTask.Config;
                     break;
                 case GenerationType.Video when task is VideoGenerationTask videoTask:
-                    legacyTask.VideoConfig = videoTask.Config;
+                    // No legacy VideoConfig anymore; video workflow is built dynamically
                     break;
             }
             

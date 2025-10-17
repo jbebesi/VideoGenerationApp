@@ -31,16 +31,18 @@ namespace VideoGenerationApp.Services.Generation
         /// <summary>
         /// Generate video with the specified configuration
         /// </summary>
-        public async Task<string> GenerateAsync(string name, VideoWorkflowConfig config, string? notes = null)
+        public async Task<string> GenerateAsync(string name, VideoWorkflowWrapper wrapper, string? notes = null)
         {
             _logger.LogInformation("Starting video generation: {Name}", name);
 
             // Create video generation task
-            var task = new VideoGenerationTask(config, _videoService, _comfyUIClient, _webHostEnvironment)
+            var task = new VideoGenerationTask(wrapper, _videoService, _comfyUIClient, _webHostEnvironment)
             {
                 Name = name,
                 Notes = notes
             };
+
+            
 
             // Queue the task
             var taskId = await _queueService.QueueTaskAsync(task);

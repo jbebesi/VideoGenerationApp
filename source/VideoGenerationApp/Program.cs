@@ -6,6 +6,7 @@ using VideoGenerationApp.Logging;
 using Microsoft.Extensions.Options;
 using VideoGenerationApp.Dto;
 using ComfyUI.Client.Extensions;
+using VideoGenerationApp.Examples;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -64,6 +65,8 @@ builder.Services.AddHostedService<GenerationQueueService>(provider => provider.G
 
 // Per-circuit state for sharing parsed output across pages
 builder.Services.AddScoped<OllamaOutputState>();
+
+builder.Services.AddScoped<GenerationWorkflowExample>();
 
 var app = builder.Build();
 

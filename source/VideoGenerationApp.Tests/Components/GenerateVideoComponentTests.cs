@@ -1,10 +1,13 @@
 using Bunit;
+using ComfyUI.Client.Services;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using Moq;
 using VideoGenerationApp.Components.Pages;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Services;
+using VideoGenerationApp.Services.Generation;
 using Xunit;
 
 namespace VideoGenerationApp.Tests.Components
@@ -14,6 +17,7 @@ namespace VideoGenerationApp.Tests.Components
         private readonly Mock<IGenerationQueueService> _queueServiceMock;
         private readonly OllamaOutputState _outputState;
         private readonly Mock<ILogger<GenerateVideo>> _loggerMock;
+        private readonly Mock<IGeneratedFileService> _generatedFileServiceMock;
 
         public GenerateVideoComponentTests()
         {
@@ -28,6 +32,19 @@ namespace VideoGenerationApp.Tests.Components
             _queueServiceMock.Setup(x => x.GetVideoModelsAsync())
                 .ReturnsAsync(new List<string>());
 
+            _generatedFileServiceMock = new Mock<IGeneratedFileService>();
+            _generatedFileServiceMock.Setup(x => x.GetVideoFilesAsync())
+                .Returns(Task.FromResult(new List<GeneratedFileInfo>()));
+            _generatedFileServiceMock.Setup(x => x.GetImageFilesAsync())
+                .Returns(Task.FromResult(new List<GeneratedFileInfo>()));
+            _generatedFileServiceMock.Setup(x => x.GetAudioFilesAsync())
+                .Returns(Task.FromResult(new List<GeneratedFileInfo>()));
+
+            Services.AddSingleton(Mock.Of<IWebHostEnvironment>());
+            Services.AddSingleton(Mock.Of<IComfyUIApiClient>());
+            Services.AddSingleton(Mock.Of<IComfyUIVideoService>());
+            Services.AddSingleton(_generatedFileServiceMock.Object);
+            Services.AddScoped<VideoGenerationWorkflow>();
             Services.AddSingleton(_queueServiceMock.Object);
             Services.AddSingleton(_outputState);
             Services.AddSingleton(_loggerMock.Object);
@@ -88,6 +105,7 @@ namespace VideoGenerationApp.Tests.Components
                 GeneratedFilePath = "/audio/test.wav",
                 AudioConfig = new AudioWorkflowConfig { AudioDurationSeconds = 30f }
             };
+
 
             _queueServiceMock.Setup(x => x.GetAllTasksAsync())
                 .ReturnsAsync(new List<GenerationTask> { audioTask });

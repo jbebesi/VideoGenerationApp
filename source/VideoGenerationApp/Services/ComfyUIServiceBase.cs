@@ -4,6 +4,7 @@ using System.Linq;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Configuration;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.Logging;
 using ComfyUI.Client.Services;
 using ComfyUI.Client.Models.Requests;
 using ComfyUI.Client.Models.Responses;
@@ -231,8 +232,22 @@ namespace VideoGenerationApp.Services
             {
                 _logger.LogInformation("Starting workflow submission process");
 
+                // If a raw JSON string is provided, send it via the raw workflow endpoint
+                if (workflowObject is string rawJson)
+                {
+                    _logger.LogDebug("Workflow object provided as raw JSON string, sending via SendWorkflowAsync");
+                    var rawResponse = await _comfyUIClient.SendWorkflowAsync(rawJson);
+                    if (string.IsNullOrEmpty(rawResponse.PromptId))
+                    {
+                        _logger.LogError("ComfyUI response does not contain a valid PromptId");
+                        return null;
+                    }
+                    _logger.LogInformation("Workflow submitted successfully with prompt ID: {PromptId}", rawResponse.PromptId);
+                    return rawResponse.PromptId;
+                }
+
                 // Convert workflowObject to Dictionary<string, object>
-                Dictionary<string, object> promptDict;
+                Dictionary<string, object>? promptDict = null;
                 if (workflowObject is Dictionary<string, object> dict)
                 {
                     promptDict = dict;
@@ -240,48 +255,29 @@ namespace VideoGenerationApp.Services
                 }
                 else
                 {
-                    _logger.LogDebug("Converting workflow object to Dictionary<string, object>");
-                    // Try to serialize and deserialize to convert to Dictionary<string, object>
-                    var json = JsonSerializer.Serialize(workflowObject);
-                    _logger.LogDebug("Serialized workflow to JSON ({Length} characters)", json.Length);
-                    promptDict = JsonSerializer.Deserialize<Dictionary<string, object>>(json) ?? new Dictionary<string, object>();
-                    _logger.LogDebug("Deserialized JSON to Dictionary with {Count} entries", promptDict.Count);
+                    _logger.LogDebug("Attempting to convert workflow object to Dictionary<string, object> via JSON serialization");
+                    try
+                    {
+                        var json = JsonSerializer.Serialize(workflowObject);
+                        promptDict = JsonSerializer.Deserialize<Dictionary<string, object>>(json);
+                    }
+                    catch (Exception ex)
+                    {
+                        _logger.LogWarning(ex, "Failed to convert workflow object to dictionary via JSON serialization");
+                    }
                 }
 
-                if (promptDict.Count == 0)
+                if (promptDict == null)
                 {
-                    _logger.LogError("Workflow dictionary is empty - cannot submit workflow");
+                    _logger.LogError("Failed to convert workflow object to Dictionary<string, object>");
                     return null;
                 }
 
-                var request = new PromptRequest
-                {
-                    Prompt = promptDict,
-                    ClientId = Guid.NewGuid().ToString()
-                };
+                var request = new PromptRequest { Prompt = promptDict };
 
-                _logger.LogInformation("Submitting workflow to ComfyUI at {ApiUrl}", _settings.ApiUrl);
-                _logger.LogDebug("Workflow prompt contains {NodeCount} nodes", promptDict.Count);
-                _logger.LogDebug("Request ClientId: {ClientId}", request.ClientId);
-                
-                _logger.LogDebug("Calling ComfyUI client SubmitPromptAsync...");
                 var response = await _comfyUIClient.SubmitPromptAsync(request);
-                _logger.LogDebug("Received response from ComfyUI client");
-
-                if (response == null)
-                {
-                    _logger.LogError("ComfyUI client returned null response");
-                    return null;
-                }
 
                 _logger.LogDebug("Response PromptId: {PromptId}", response.PromptId ?? "null");
-                _logger.LogDebug("Response NodeErrors count: {ErrorCount}", response.NodeErrors?.Count ?? 0);
-
-                if (response.NodeErrors?.Any() == true)
-                {
-                    _logger.LogError("ComfyUI workflow has node errors: {NodeErrors}", JsonSerializer.Serialize(response.NodeErrors));
-                    return null;
-                }
 
                 if (string.IsNullOrEmpty(response.PromptId))
                 {
@@ -620,7 +616,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Abstract method for getting the workflow template
         /// </summary>
-        public abstract string GetWorkflowTemplate();
+        public abstract string GetWorkflowTemplate(string resource);
 
         /// <summary>
         /// Checks if a JsonElement contains actual node error information

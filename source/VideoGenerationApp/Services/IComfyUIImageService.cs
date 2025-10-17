@@ -6,7 +6,7 @@ namespace VideoGenerationApp.Services
     {
         ImageWorkflowConfig GetWorkflowConfig();
         void SetWorkflowConfig(ImageWorkflowConfig config);
-        string GetWorkflowTemplate();
+        string GetWorkflowTemplate(string resource);
         void SetWorkflowTemplate(string template);
         Task<string?> GenerateAsync(VideoSceneOutput sceneOutput);
         Task<string?> GenerateImageAsync(ImageWorkflowConfig config);

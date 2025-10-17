@@ -71,11 +71,6 @@ namespace VideoGenerationApp.Dto
         public ImageWorkflowConfig? ImageConfig { get; set; }
         
         /// <summary>
-        /// Video configuration used for this generation (if Type is Video)
-        /// </summary>
-        public VideoWorkflowConfig? VideoConfig { get; set; }
-        
-        /// <summary>
         /// Legacy audio config property for backward compatibility
         /// </summary>
         public AudioWorkflowConfig Config 

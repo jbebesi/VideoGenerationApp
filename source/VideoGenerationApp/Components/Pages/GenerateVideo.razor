@@ -10,6 +10,7 @@
 @inject OllamaOutputState OutputState
 @inject ILogger<GenerateVideo> Logger
 @inject IJSRuntime JSRuntime
+@inject Examples.GenerationWorkflowExample Example;
 @implements IDisposable
 
 <PageTitle>Generate Video - Video Generation App</PageTitle>
@@ -42,10 +43,10 @@
                     <div class="col-md-6">
                         <div class="form-group">
                             <label for="modelSelect">
-                                Video Model
-                                <i class="bi bi-question-circle tooltip-icon" title="Select the video generation model to use. SVD models are designed for image-to-video generation."></i>
+                                Checkpoint Model
+                                <i class="bi bi-question-circle tooltip-icon" title="Select the checkpoint model to use for generation. Standard Stable Diffusion models work for image-to-image video generation."></i>
                             </label>
-                            <select id="modelSelect" class="form-select" @bind="videoConfig.CheckpointName" disabled="@isLoadingModels">
+                            <select id="modelSelect" class="form-select" @bind="videoWrapper.CheckpointName" disabled="@isLoadingModels">
                                 @if (isLoadingModels)
                                 {
                                     <option disabled selected>Loading models...</option>
@@ -73,8 +74,17 @@
                                 Text Prompt / Description
                                 <i class="bi bi-question-circle tooltip-icon" title="Describe what should happen in the video"></i>
                             </label>
-                            <textarea id="textPrompt" class="form-control" rows="4" @bind="videoConfig.TextPrompt" 
+                            <textarea id="textPrompt" class="form-control" rows="4" @bind="videoWrapper.TextPrompt" 
                                 placeholder="e.g., A serene landscape with moving clouds and gentle wind"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="negativePrompt">
+                                Negative Prompt
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe what you don't want in the video"></i>
+                            </label>
+                            <textarea id="negativePrompt" class="form-control" rows="2" @bind="videoWrapper.NegativePrompt" 
+                                placeholder="e.g., blurry, low quality, distorted, ugly"></textarea>
                         </div>
                         
                         <div class="form-group">
@@ -82,7 +92,7 @@
                                 Audio File (optional)
                                 <i class="bi bi-question-circle tooltip-icon" title="Select an audio file from previous generations"></i>
                             </label>
-                            <select id="audioFile" class="form-control" @bind="videoConfig.AudioFilePath">
+                            <select id="audioFile" class="form-control" @bind="videoWrapper.AudioFilePath">
                                 <option value="">-- No Audio --</option>
                                 @foreach (var file in audioFiles)
                                 {
@@ -100,7 +110,7 @@
                                 Base Image (optional)
                                 <i class="bi bi-question-circle tooltip-icon" title="Select an image file from previous generations"></i>
                             </label>
-                            <select id="imageFile" class="form-control" @bind="videoConfig.ImageFilePath" @bind:after="OnImageSelectionChanged">
+                            <select id="imageFile" class="form-control" @bind="videoWrapper.ImageFilePath" @bind:after="OnImageSelectionChanged">
                                 <option value="">-- Generate from prompt --</option>
                                 @foreach (var file in imageFiles)
                                 {
@@ -119,8 +129,8 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="Length of the video in seconds"></i>
                             </label>
                             <input id="duration" type="number" class="form-control" step="0.5" min="1" max="120" 
-                                @bind="videoConfig.DurationSeconds" />
-                            @if (!string.IsNullOrEmpty(videoConfig.AudioFilePath))
+                                @bind="videoWrapper.DurationSeconds" />
+                            @if (!string.IsNullOrEmpty(videoWrapper.AudioFilePath))
                             {
                                 <small class="form-text text-muted">
                                     Will match audio duration: @GetSelectedAudioDuration() seconds
@@ -134,8 +144,8 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="Video width in pixels"></i>
                             </label>
                             <input id="width" type="number" class="form-control" step="64" min="512" max="2048" 
-                                @bind="videoConfig.Width" />
-                            @if (!string.IsNullOrEmpty(videoConfig.ImageFilePath))
+                                @bind="videoWrapper.Width" />
+                            @if (!string.IsNullOrEmpty(videoWrapper.ImageFilePath))
                             {
                                 <small class="form-text text-muted">
                                     Matches selected image width
@@ -149,8 +159,8 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="Video height in pixels"></i>
                             </label>
                             <input id="height" type="number" class="form-control" step="64" min="512" max="2048" 
-                                @bind="videoConfig.Height" />
-                            @if (!string.IsNullOrEmpty(videoConfig.ImageFilePath))
+                                @bind="videoWrapper.Height" />
+                            @if (!string.IsNullOrEmpty(videoWrapper.ImageFilePath))
                             {
                                 <small class="form-text text-muted">
                                     Matches selected image height
@@ -165,7 +175,7 @@
                                 FPS (Frames per Second)
                                 <i class="bi bi-question-circle tooltip-icon" title="Video frame rate"></i>
                             </label>
-                            <select id="fps" class="form-control" @bind="videoConfig.Fps">
+                            <select id="fps" class="form-control" @bind="videoWrapper.Fps">
                                 <option value="24">24 FPS (Film)</option>
                                 <option value="30">30 FPS (Standard)</option>
                                 <option value="60">60 FPS (Smooth)</option>
@@ -177,7 +187,7 @@
                                 Animation Style
                                 <i class="bi bi-question-circle tooltip-icon" title="How the video should be animated"></i>
                             </label>
-                            <select id="animationStyle" class="form-control" @bind="videoConfig.AnimationStyle">
+                            <select id="animationStyle" class="form-control" @bind="videoWrapper.AnimationStyle">
                                 <option value="static">Static (minimal motion)</option>
                                 <option value="smooth">Smooth (gentle movement)</option>
                                 <option value="dynamic">Dynamic (active motion)</option>
@@ -190,7 +200,7 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="How much motion/animation (0.0 = none, 1.0 = maximum)"></i>
                             </label>
                             <input id="motionIntensity" type="number" class="form-control" step="0.1" min="0" max="1" 
-                                @bind="videoConfig.MotionIntensity" />
+                                @bind="videoWrapper.MotionIntensity" />
                         </div>
                         
                         <div class="form-group">
@@ -199,7 +209,7 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="Number of denoising steps (higher = better quality, slower)"></i>
                             </label>
                             <input id="steps" type="number" class="form-control" min="1" max="100" 
-                                @bind="videoConfig.Steps" />
+                                @bind="videoWrapper.Steps" />
                         </div>
                         
                         <div class="form-group">
@@ -208,7 +218,53 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="How closely to follow the prompt (1-20)"></i>
                             </label>
                             <input id="cfgScale" type="number" class="form-control" step="0.5" min="1" max="20" 
-                                @bind="videoConfig.CFGScale" />
+                                @bind="videoWrapper.CFGScale" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="denoise">
+                                Denoise Strength
+                                <i class="bi bi-question-circle tooltip-icon" title="Strength of image-to-image transformation (0.0-1.0, higher = more change)"></i>
+                            </label>
+                            <input id="denoise" type="number" class="form-control" step="0.05" min="0.0" max="1.0" 
+                                @bind="videoWrapper.Denoise" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="samplerName">
+                                Sampler
+                                <i class="bi bi-question-circle tooltip-icon" title="Sampling method used for generation"></i>
+                            </label>
+                            <select id="samplerName" class="form-select" @bind="videoWrapper.SamplerName">
+                                <option value="euler">Euler</option>
+                                <option value="euler_ancestral">Euler Ancestral</option>
+                                <option value="heun">Heun</option>
+                                <option value="dpm_2">DPM2</option>
+                                <option value="dpm_2_ancestral">DPM2 Ancestral</option>
+                                <option value="lms">LMS</option>
+                                <option value="dpm_fast">DPM Fast</option>
+                                <option value="dpm_adaptive">DPM Adaptive</option>
+                                <option value="dpmpp_2s_ancestral">DPM++ 2S Ancestral</option>
+                                <option value="dpmpp_sde">DPM++ SDE</option>
+                                <option value="dpmpp_2m">DPM++ 2M</option>
+                                <option value="ddim">DDIM</option>
+                                <option value="uni_pc">UniPC</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="scheduler">
+                                Scheduler
+                                <i class="bi bi-question-circle tooltip-icon" title="Noise schedule used during generation"></i>
+                            </label>
+                            <select id="scheduler" class="form-select" @bind="videoWrapper.Scheduler">
+                                <option value="normal">Normal</option>
+                                <option value="karras">Karras</option>
+                                <option value="exponential">Exponential</option>
+                                <option value="sgm_uniform">SGM Uniform</option>
+                                <option value="simple">Simple</option>
+                                <option value="ddim_uniform">DDIM Uniform</option>
+                            </select>
                         </div>
                         
                         <div class="form-group">
@@ -217,7 +273,7 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="Video compression quality (0-100, higher = better)"></i>
                             </label>
                             <input id="quality" type="number" class="form-control" min="0" max="100" 
-                                @bind="videoConfig.Quality" />
+                                @bind="videoWrapper.Quality" />
                         </div>
                     </div>
                 </div>
@@ -270,11 +326,15 @@
                 <h5><i class="bi bi-info-circle me-2"></i>Info</h5>
                 <div class="card">
                     <div class="card-body">
-                        <p><strong>Selected Audio:</strong> @(string.IsNullOrEmpty(videoConfig.AudioFilePath) ? "None" : GetSelectedAudioName())</p>
-                        <p><strong>Selected Image:</strong> @(string.IsNullOrEmpty(videoConfig.ImageFilePath) ? "None" : GetSelectedImageName())</p>
-                        <p><strong>Estimated Duration:</strong> @videoConfig.DurationSeconds seconds</p>
-                        <p><strong>Resolution:</strong> @videoConfig.Width x @videoConfig.Height</p>
-                        <p class="mb-0"><strong>Frame Rate:</strong> @videoConfig.Fps FPS</p>
+                        <p><strong>Selected Audio:</strong> @(string.IsNullOrEmpty(videoWrapper.AudioFilePath) ? "None" : GetSelectedAudioName())</p>
+                        <p><strong>Selected Image:</strong> @(string.IsNullOrEmpty(videoWrapper.ImageFilePath) ? "None" : GetSelectedImageName())</p>
+                        <p><strong>Model:</strong> @videoWrapper.CheckpointName</p>
+                        <p><strong>Sampler:</strong> @videoWrapper.SamplerName (@videoWrapper.Scheduler)</p>
+                        <p><strong>Steps:</strong> @videoWrapper.Steps | <strong>CFG:</strong> @videoWrapper.CFGScale</p>
+                        <p><strong>Denoise:</strong> @videoWrapper.Denoise.ToString("F2")</p>
+                        <p><strong>Estimated Duration:</strong> @videoWrapper.DurationSeconds seconds</p>
+                        <p><strong>Resolution:</strong> @videoWrapper.Width x @videoWrapper.Height</p>
+                        <p class="mb-0"><strong>Frame Rate:</strong> @videoWrapper.Fps FPS</p>
                     </div>
                 </div>
                 <div class="alert alert-info mt-3">
@@ -289,7 +349,7 @@
 </div>
 
 @code {
-    private VideoWorkflowConfig videoConfig = new();
+    private VideoWorkflowWrapper videoWrapper = new();
     private string? errorMessage;
     private bool isGenerating;
     private bool isLoadingModels;
@@ -300,22 +360,22 @@
     protected override async Task OnInitializedAsync()
     {
         await LoadAvailableFiles();
-        
+
         // Initialize with Ollama visual description if available
         if (OutputState.ParsedOutput != null)
         {
             // Use visual_description for video generation (primary)
             if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.visual_description))
             {
-                videoConfig.TextPrompt = OutputState.ParsedOutput.visual_description;
+                videoWrapper.TextPrompt = OutputState.ParsedOutput.visual_description;
             }
             // Fallback to narrative if visual_description is missing
             else if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.narrative))
             {
-                videoConfig.TextPrompt = OutputState.ParsedOutput.narrative;
+                videoWrapper.TextPrompt = OutputState.ParsedOutput.narrative;
             }
         }
-        
+
         // Load available models
         await LoadAvailableModels();
     }
@@ -326,19 +386,19 @@
         {
             isLoadingModels = true;
             StateHasChanged();
-            
+
             Logger.LogInformation("Loading available video models from ComfyUI via VideoWorkflow");
-            
+
             // Get models from the video workflow which has access to ComfyUI services
             availableModels = await VideoWorkflow.GetAvailableModelsAsync();
-            
+
             // If current checkpoint is not in the list and list is not empty, select the first one
-            if (availableModels.Any() && !availableModels.Contains(videoConfig.CheckpointName))
+            if (availableModels.Any() && !availableModels.Contains(videoWrapper.CheckpointName))
             {
-                videoConfig.CheckpointName = availableModels[0];
-                Logger.LogInformation("Selected default video model: {Model}", videoConfig.CheckpointName);
+                videoWrapper.CheckpointName = availableModels[0];
+                Logger.LogInformation("Selected default video model: {Model}", videoWrapper.CheckpointName);
             }
-            
+
             Logger.LogInformation("Loaded {Count} video models", availableModels.Count);
         }
         catch (Exception ex)
@@ -358,11 +418,11 @@
         try
         {
             Logger.LogInformation("Loading available audio and image files from wwwroot");
-            
+
             // Load files using the dedicated file service
             audioFiles = await FileService.GetAudioFilesAsync();
             imageFiles = await FileService.GetImageFilesAsync();
-            
+
             Logger.LogInformation("Loaded {AudioCount} audio files and {ImageCount} image files", 
                 audioFiles.Count, imageFiles.Count);
         }
@@ -382,22 +442,22 @@
             // Use visual_description for video generation (primary)
             if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.visual_description))
             {
-                videoConfig.TextPrompt = OutputState.ParsedOutput.visual_description;
+                videoWrapper.TextPrompt = OutputState.ParsedOutput.visual_description;
             }
             // Fallback to narrative if visual_description is missing
             else if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.narrative))
             {
-                videoConfig.TextPrompt = OutputState.ParsedOutput.narrative;
+                videoWrapper.TextPrompt = OutputState.ParsedOutput.narrative;
             }
             else
             {
-                videoConfig.TextPrompt = "";
+                videoWrapper.TextPrompt = "";
             }
-            
+
             // Add video actions if available
             if (OutputState.ParsedOutput.video_actions != null && OutputState.ParsedOutput.video_actions.Any())
             {
-                videoConfig.TextPrompt += "\n\nActions: " + string.Join(", ", OutputState.ParsedOutput.video_actions);
+                videoWrapper.TextPrompt += "\n\nActions: " + string.Join(", ", OutputState.ParsedOutput.video_actions);
             }
             StateHasChanged();
         }
@@ -405,32 +465,32 @@
 
     private void ResetParameters()
     {
-        videoConfig = new VideoWorkflowConfig();
+        videoWrapper = new VideoWorkflowWrapper();
         StateHasChanged();
     }
 
     private string GetSelectedAudioName()
     {
-        var file = audioFiles.FirstOrDefault(f => f.FilePath == videoConfig.AudioFilePath);
+        var file = audioFiles.FirstOrDefault(f => f.FilePath == videoWrapper.AudioFilePath);
         return file?.Name ?? "Unknown";
     }
 
     private string GetSelectedImageName()
     {
-        var file = imageFiles.FirstOrDefault(f => f.FilePath == videoConfig.ImageFilePath);
+        var file = imageFiles.FirstOrDefault(f => f.FilePath == videoWrapper.ImageFilePath);
         return file?.Name ?? "Unknown";
     }
 
     private void OnImageSelectionChanged()
     {
         // Auto-update video dimensions when image is selected
-        if (!string.IsNullOrEmpty(videoConfig.ImageFilePath))
+        if (!string.IsNullOrEmpty(videoWrapper.ImageFilePath))
         {
-            var file = imageFiles.FirstOrDefault(f => f.FilePath == videoConfig.ImageFilePath);
+            var file = imageFiles.FirstOrDefault(f => f.FilePath == videoWrapper.ImageFilePath);
             if (file?.Width.HasValue == true && file?.Height.HasValue == true)
             {
-                videoConfig.Width = file.Width.Value;
-                videoConfig.Height = file.Height.Value;
+                videoWrapper.Width = file.Width.Value;
+                videoWrapper.Height = file.Height.Value;
                 StateHasChanged();
             }
         }
@@ -438,14 +498,14 @@
 
     private float GetSelectedAudioDuration()
     {
-        var file = audioFiles.FirstOrDefault(f => f.FilePath == videoConfig.AudioFilePath);
+        var file = audioFiles.FirstOrDefault(f => f.FilePath == videoWrapper.AudioFilePath);
         if (file?.Duration.HasValue == true)
         {
             // Auto-update duration when audio is selected
-            videoConfig.DurationSeconds = file.Duration.Value;
+            videoWrapper.DurationSeconds = (int)file.Duration.Value;
             return file.Duration.Value;
         }
-        return videoConfig.DurationSeconds;
+        return videoWrapper.DurationSeconds;
     }
 
     private async Task QueueVideoGeneration()
@@ -457,23 +517,25 @@
         try
         {
             // Update duration to match audio if audio is selected
-            if (!string.IsNullOrEmpty(videoConfig.AudioFilePath))
+            if (!string.IsNullOrEmpty(videoWrapper.AudioFilePath))
             {
                 GetSelectedAudioDuration();
             }
 
-            Logger.LogInformation("Queueing video generation: {Prompt}", videoConfig.TextPrompt);
+            Logger.LogInformation("Queueing video generation: {Prompt}", videoWrapper.TextPrompt);
 
             // Generate a user-friendly name from the prompt
-            var taskName = !string.IsNullOrWhiteSpace(videoConfig.TextPrompt) && videoConfig.TextPrompt.Length > 10
-                ? videoConfig.TextPrompt.Substring(0, Math.Min(50, videoConfig.TextPrompt.Length))
+            var taskName = !string.IsNullOrWhiteSpace(videoWrapper.TextPrompt) && videoWrapper.TextPrompt.Length > 10
+                ? videoWrapper.TextPrompt.Substring(0, Math.Min(50, videoWrapper.TextPrompt.Length))
                 : "Video Generation";
 
             if (taskName.Length > 80)
                 taskName = taskName.Substring(0, 77) + "...";
 
-            // Use the new workflow service instead of the queue service directly
-            var taskId = await VideoWorkflow.GenerateAsync(taskName, videoConfig);
+            // Use the new workflow service instead of the queue service directly - pass the wrapper
+            var taskId = await VideoWorkflow.GenerateAsync(taskName, videoWrapper);
+
+            //await Example.GenerateVideoExample();
 
             // Show success message
             await JSRuntime.InvokeVoidAsync("alert",

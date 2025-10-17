@@ -45,7 +45,7 @@ namespace VideoGenerationApp.Services
         /// <summary>
         /// Gets the current image workflow template as JSON
         /// </summary>
-        public override string GetWorkflowTemplate()
+        public override string GetWorkflowTemplate(string resource)
         {
             var workflow = ImageWorkflowFactory.CreateWorkflow(_workflowConfig);
             return JsonSerializer.Serialize(workflow, new JsonSerializerOptions 

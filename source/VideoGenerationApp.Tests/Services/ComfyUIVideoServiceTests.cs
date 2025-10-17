@@ -9,29 +9,28 @@ using Moq.Protected;
 using VideoGenerationApp.Configuration;
 using VideoGenerationApp.Dto;
 using VideoGenerationApp.Services;
+using ComfyUI.Client.Services;
+using ComfyUI.Client.Models.Responses;
 using Xunit;
 
 namespace VideoGenerationApp.Tests.Services
 {
     public class ComfyUIVideoServiceTests
     {
-        private readonly Mock<HttpMessageHandler> _httpMessageHandlerMock;
-        private readonly HttpClient _httpClient;
         private readonly Mock<ILogger<ComfyUIVideoService>> _loggerMock;
         private readonly Mock<IWebHostEnvironment> _environmentMock;
         private readonly Mock<IOptions<ComfyUISettings>> _settingsMock;
+        private readonly Mock<IComfyUIApiClient> _apiClientMock;
+        private readonly Mock<IComfyUIFileService> _fileServiceMock;
         private readonly ComfyUIVideoService _comfyUIVideoService;
         private readonly ComfyUISettings _settings;
 
         public ComfyUIVideoServiceTests()
         {
-            _httpMessageHandlerMock = new Mock<HttpMessageHandler>();
-            _httpClient = new HttpClient(_httpMessageHandlerMock.Object)
-            {
-                BaseAddress = new Uri("http://localhost:8188")
-            };
             _loggerMock = new Mock<ILogger<ComfyUIVideoService>>();
             _environmentMock = new Mock<IWebHostEnvironment>();
+            _apiClientMock = new Mock<IComfyUIApiClient>();
+            _fileServiceMock = new Mock<IComfyUIFileService>();
             
             _settings = new ComfyUISettings
             {
@@ -45,10 +44,11 @@ namespace VideoGenerationApp.Tests.Services
             _environmentMock.Setup(x => x.WebRootPath).Returns("C:\\TestWebRoot");
 
             _comfyUIVideoService = new ComfyUIVideoService(
-                _httpClient, 
+                _apiClientMock.Object, 
                 _loggerMock.Object, 
                 _environmentMock.Object,
-                _settingsMock.Object);
+                _settingsMock.Object,
+                _fileServiceMock.Object);
         }
 
         [Fact]
@@ -233,25 +233,13 @@ namespace VideoGenerationApp.Tests.Services
                 emotion = "peaceful"
             };
 
-            // Mock HTTP response for workflow submission
-            var responseContent = new StringContent(
-                JsonSerializer.Serialize(new ComfyUIWorkflowResponse { prompt_id = "test-prompt-123" }),
-                Encoding.UTF8,
-                "application/json"
-            );
+            // Mock successful workflow submission
+            _apiClientMock.Setup(x => x.SubmitPromptAsync(It.IsAny<ComfyUI.Client.Models.Requests.PromptRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new PromptResponse { PromptId = "test-prompt-123" });
 
-            _httpMessageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.IsAny<HttpRequestMessage>(),
-                    ItExpr.IsAny<CancellationToken>()
-                )
-                .ReturnsAsync(new HttpResponseMessage
-                {
-                    StatusCode = HttpStatusCode.OK,
-                    Content = responseContent
-                });
+            // Mock system stats to simulate ComfyUI running
+            _apiClientMock.Setup(x => x.GetSystemStatsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new SystemStatsResponse());
 
             // Act
             var result = await _comfyUIVideoService.GenerateAsync(sceneOutput);
@@ -270,24 +258,12 @@ namespace VideoGenerationApp.Tests.Services
                 TextPrompt = "Test video generation"
             };
 
-            var responseContent = new StringContent(
-                JsonSerializer.Serialize(new ComfyUIWorkflowResponse { prompt_id = "video-prompt-456" }),
-                Encoding.UTF8,
-                "application/json"
-            );
+            _apiClientMock.Setup(x => x.SubmitPromptAsync(It.IsAny<ComfyUI.Client.Models.Requests.PromptRequest>(), It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new PromptResponse { PromptId = "video-prompt-456" });
 
-            _httpMessageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.IsAny<HttpRequestMessage>(),
-                    ItExpr.IsAny<CancellationToken>()
-                )
-                .ReturnsAsync(new HttpResponseMessage
-                {
-                    StatusCode = HttpStatusCode.OK,
-                    Content = responseContent
-                });
+            // Mock system stats to simulate ComfyUI running
+            _apiClientMock.Setup(x => x.GetSystemStatsAsync(It.IsAny<CancellationToken>()))
+                .ReturnsAsync(new SystemStatsResponse());
 
             // Act
             var result = await _comfyUIVideoService.GenerateVideoAsync(config);
@@ -306,17 +282,8 @@ namespace VideoGenerationApp.Tests.Services
                 TextPrompt = "Test video generation"
             };
 
-            _httpMessageHandlerMock
-                .Protected()
-                .Setup<Task<HttpResponseMessage>>(
-                    "SendAsync",
-                    ItExpr.IsAny<HttpRequestMessage>(),
-                    ItExpr.IsAny<CancellationToken>()
-                )
-                .ReturnsAsync(new HttpResponseMessage
-                {
-                    StatusCode = HttpStatusCode.InternalServerError
-                });
+            _apiClientMock.Setup(x => x.SubmitPromptAsync(It.IsAny<ComfyUI.Client.Models.Requests.PromptRequest>(), It.IsAny<CancellationToken>()))
+                .ThrowsAsync(new HttpRequestException("Submission failed"));
 
             // Act
             var result = await _comfyUIVideoService.GenerateVideoAsync(config);
@@ -342,6 +309,21 @@ namespace VideoGenerationApp.Tests.Services
             _comfyUIVideoService.SetWorkflowTemplate(template);
             var config = _comfyUIVideoService.GetWorkflowConfig();
             Assert.NotNull(config);
+        }
+
+        [Fact]
+        public async Task GetVideoModelsAsync_ReturnsModels_WhenSuccessful()
+        {
+            // Arrange
+            var expectedModels = new List<string> { "svd_xt.safetensors", "svd_xt_1_1.safetensors" };
+            _apiClientMock.Setup(x => x.GetModelsAsync("checkpoints", It.IsAny<CancellationToken>()))
+                .ReturnsAsync(expectedModels);
+
+            // Act
+            var result = await _comfyUIVideoService.GetVideoModelsAsync();
+
+            // Assert
+            Assert.Equal(expectedModels, result);
         }
     }
 }
