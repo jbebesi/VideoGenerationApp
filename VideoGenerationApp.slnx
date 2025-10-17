@@ -1,4 +1,4 @@
 <Solution>
-  <Project Path="VideoGenerationApp/VideoGenerationApp.csproj" />
-  <Project Path="VideoGenerationApp.Tests/VideoGenerationApp.Tests.csproj" />
+  <Project Path="source/ComfyUI.Client/ComfyUI.Client.csproj" />
+  <Project Path="source/VideoGenerationApp/VideoGenerationApp.csproj" />
 </Solution>

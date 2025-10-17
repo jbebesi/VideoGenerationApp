@@ -1,0 +1,427 @@
+@page "/ollama-models"
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@rendermode InteractiveServer
+@using VideoGenerationApp.Services
+@using VideoGenerationApp.Dto
+@inject IOllamaService OllamaService
+@inject OllamaOutputState OutputState
+@inject ILogger<OllamaModels> Logger
+@implements IDisposable
+
+<PageTitle>Ollama Models - Video Generation App</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h3 class="mb-4">
+                <i class="bi bi-robot me-2"></i>
+                Ollama Local Models
+            </h3>
+        </div>
+    </div>
+
+    @if (isLoading)
+    {
+        <div class="text-center py-4">
+            <div class="spinner-border" role="status">
+                <span class="visually-hidden">Loading models...</span>
+            </div>
+            <p class="mt-2">Loading models...</p>
+        </div>
+    }
+
+    @if (errorMessage != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> @errorMessage
+            @if (!string.IsNullOrWhiteSpace(errorDetails))
+            {
+                <details class="mt-2">
+                    <summary>Technical Details</summary>
+                    <pre class="mb-0 mt-2" style="white-space:pre-wrap; font-size: 0.875rem;">@errorDetails</pre>
+                </details>
+            }
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Model Selection Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-cpu me-2"></i>Model Selection</h5>
+                <div class="form-group">
+                    <label for="modelSelect">
+                        Language Model
+                        <i class="bi bi-question-circle tooltip-icon" title="Select the language model to use for generation. Different models have varying capabilities, speed, and resource requirements."></i>
+                    </label>
+                    <select id="modelSelect" class="form-select" value="@selectedModel" @onchange="OnModelChanged" disabled="@isLoading">
+                        @if (models.Count == 0)
+                        {
+                            <option disabled selected>No models found</option>
+                        }
+                        else
+                        {
+                            @foreach (var modelDetail in modelDetails)
+                            {
+                                var displayText = modelDetail.name;
+                                if (modelDetail.size > 0)
+                                {
+                                    var sizeText = VideoGenerationApp.Services.OllamaService.FormatFileSize(modelDetail.size);
+                                    displayText = $"{modelDetail.name} ({sizeText})";
+                                }
+                                <option value="@modelDetail.name" selected="@(modelDetail.name == selectedModel)">
+                                    @displayText
+                                </option>
+                            }
+                        }
+                    </select>
+                    <div class="param-description">
+                        Choose from available local models, ordered by size (smallest first). Larger models provide better quality but are slower. The smallest model is automatically selected by default.
+                    </div>
+                    <button class="btn btn-outline-secondary btn-sm mt-2" @onclick="LoadModels" disabled="@isLoading">
+                        <i class="bi bi-arrow-clockwise me-1"></i>Refresh Models
+                    </button>
+                </div>
+            </div>
+
+            <!-- Input Content Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-chat-text me-2"></i>Content Generation</h5>
+                <div class="form-group">
+                    <label for="promptInput">
+                        Topic/Prompt
+                        <i class="bi bi-question-circle tooltip-icon" title="Enter the topic or prompt for video content generation. Be specific and clear for best results."></i>
+                    </label>
+                    <textarea id="promptInput" class="form-control" rows="3" value="@prompt" @oninput="OnPromptChanged" placeholder="Enter your video topic or prompt (e.g., 'Explain quantum computing for beginners')"></textarea>
+                    <div class="param-description">
+                        Describe what kind of video content you want to generate. Clear, specific prompts yield better results.
+                    </div>
+                </div>
+            </div>
+
+            <!-- Generation Parameters Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-sliders me-2"></i>Generation Parameters</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="maxTokens">
+                                Max Tokens
+                                <i class="bi bi-question-circle tooltip-icon" title="Maximum number of tokens (words/sub-words) to generate. Higher values allow longer responses but take more time and resources. Range: 1-8000+"></i>
+                            </label>
+                            <input type="number" id="maxTokens" class="form-control" @bind="maxTokens" min="1" max="16000" />
+                            <div class="param-description">
+                                Controls response length. Higher = longer responses but slower generation.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="temperature">
+                                Temperature
+                                <i class="bi bi-question-circle tooltip-icon" title="Controls creativity/randomness. 0.0 = deterministic/focused, 1.0 = very creative. Range: 0.0-2.0. Use 0.1-0.3 for factual content, 0.4-0.7 for balanced responses, 0.8+ for creative content."></i>
+                            </label>
+                            <input type="number" id="temperature" class="form-control" @bind="temperature" min="0" max="2" step="0.1" />
+                            <div class="param-description">
+                                0.0 = focused/deterministic, 1.0 = creative/varied responses.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="topP">
+                                Top P (Nucleus Sampling)
+                                <i class="bi bi-question-circle tooltip-icon" title="Controls response diversity by limiting token selection to top cumulative probability. 0.1 = very focused, 0.7 = balanced, 0.95 = very diverse. Works with temperature for fine control."></i>
+                            </label>
+                            <input type="number" id="topP" class="form-control" @bind="topP" min="0" max="1" step="0.05" />
+                            <div class="param-description">
+                                Controls diversity. Lower = more focused, higher = more varied responses.
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="numPredictions">
+                                Predictions
+                                <i class="bi bi-question-circle tooltip-icon" title="Number of response variants to generate internally. Usually kept at 1.0 for standard single responses. Higher values may affect quality and speed."></i>
+                            </label>
+                            <input type="number" id="numPredictions" class="form-control" @bind="numPredictions" min="1" max="5" step="1" />
+                            <div class="param-description">
+                                Internal prediction variants. Keep at 1 for standard use.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Advanced Settings Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-gear me-2"></i>Advanced Settings</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="keepAlive">
+                                Keep Alive Duration
+                                <i class="bi bi-question-circle tooltip-icon" title="How long to keep the model loaded in memory after request completion. Longer = faster subsequent requests but more memory usage. Use '3m' for 3 minutes, '1h' for 1 hour, '0' to unload immediately."></i>
+                            </label>
+                            <input type="text" id="keepAlive" class="form-control" @bind="keepAlive" placeholder="3m" />
+                            <div class="param-description">
+                                Memory vs. speed trade-off. Examples: "3m", "1h", "0" (immediate unload).
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="form-group">
+                    <div class="form-check">
+                        <input class="form-check-input" type="checkbox" id="stream" @bind="stream" />
+                        <label class="form-check-label" for="stream">
+                            Enable Streaming
+                            <i class="bi bi-question-circle tooltip-icon" title="Stream response in real-time chunks for better user experience with long responses. Disable for simpler handling of complete responses."></i>
+                        </label>
+                        <div class="param-description">
+                            Real-time response display vs. waiting for complete response.
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Action Buttons -->
+            <div class="d-flex gap-2 mb-4">
+                <button class="btn btn-success" @onclick="SendPrompt" disabled="@(string.IsNullOrWhiteSpace(prompt) || string.IsNullOrEmpty(selectedModel))">
+                    <i class="bi bi-play-fill me-2"></i>Generate prompt template
+                </button>
+                <button class="btn btn-outline-secondary" @onclick="ResetParameters">
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
+                </button>
+            </div>
+        </div>
+
+        <!-- Output Section -->
+        <div class="col-lg-4">
+            <div class="parameter-section">
+                <h5><i class="bi bi-file-text me-2"></i>Generated Output</h5>
+                <div class="form-group">
+                    <label>Raw Response:</label>
+                    <textarea class="form-control" rows="8" readonly>@output</textarea>
+                </div>
+                
+                @if (OutputState.ParsedOutput != null)
+                {
+                    <div class="mt-3">
+                        <label>Structured Content:</label>
+                        <div class="card">
+                            <div class="card-body">
+                                <h6 class="card-title">@OutputState.ParsedOutput.narrative</h6>
+                                <p class="card-text">
+                                    <strong>Tone:</strong> @OutputState.ParsedOutput.tone<br />
+                                    <strong>Emotion:</strong> @OutputState.ParsedOutput.emotion<br />
+                                    <strong>Voice Style:</strong> @OutputState.ParsedOutput.voice_style
+                                </p>
+                                <p class="card-text">
+                                    <strong>Visual:</strong> @OutputState.ParsedOutput.visual_description
+                                </p>
+                                @if (OutputState.ParsedOutput.video_actions?.Any() == true)
+                                {
+                                    <p class="card-text">
+                                        <strong>Actions:</strong>
+                                        <ul class="mb-0">
+                                            @foreach (var action in OutputState.ParsedOutput.video_actions)
+                                            {
+                                                <li>@action</li>
+                                            }
+                                        </ul>
+                                    </p>
+                                }
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    List<OllamaModel> modelDetails = new();
+    List<string> models = new();
+    string? selectedModel;
+    bool isLoading = true;
+    string? errorMessage;
+    string? errorDetails;
+    string prompt = string.Empty;
+    string output = string.Empty;
+
+    // Ollama Request Parameters
+    int maxTokens = 8000;
+    float temperature = 0.3f;
+    float topP = 0.7f;
+    float numPredictions = 1f;
+    string keepAlive = "3m";
+    bool stream = false;
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadModels();
+        
+        // Subscribe to output state changes to update parsed output display
+        OutputState.Changed += StateHasChanged;
+    }
+
+    public void Dispose()
+    {
+        OutputState.Changed -= StateHasChanged;
+    }
+
+    private void OnModelChanged(ChangeEventArgs e)
+    {
+        selectedModel = e?.Value?.ToString();
+        Logger.LogInformation("Model changed to: {Model}", selectedModel);
+    }
+
+    private void OnPromptChanged(ChangeEventArgs e)
+    {
+        prompt = e?.Value?.ToString() ?? string.Empty;
+    }
+
+    private void ResetParameters()
+    {
+        maxTokens = 8000;
+        temperature = 0.3f;
+        topP = 0.7f;
+        numPredictions = 1f;
+        keepAlive = "3m";
+        stream = false;
+        Logger.LogInformation("Parameters reset to defaults");
+    }
+
+    async Task LoadModels()
+    {
+        isLoading = true;
+        errorMessage = null;
+        errorDetails = null;
+        try
+        {
+            Logger.LogInformation("Loading local models from Ollama...");
+            
+            // Try to get detailed model information first
+            try
+            {
+                modelDetails = await OllamaService.GetLocalModelsWithDetailsAsync();
+                models = modelDetails.Select(m => m.name).ToList();
+                Logger.LogInformation("Loaded {Count} models with details, ordered by size.", models.Count);
+            }
+            catch (Exception detailsEx)
+            {
+                Logger.LogWarning(detailsEx, "Failed to load detailed model information, falling back to simple list");
+                // Fallback to simple model list
+                models = await OllamaService.GetLocalModelsAsync();
+                modelDetails = models.Select(name => new OllamaModel { name = name, size = 0 }).ToList();
+                Logger.LogInformation("Loaded {Count} models (simple list).", models.Count);
+            }
+            
+            // Auto-select the smallest model (first in the sorted list)
+            if (models.Count > 0)
+            {
+                selectedModel = models[0];
+                Logger.LogInformation("Auto-selected smallest model: {Model}", selectedModel);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading models from Ollama.");
+            (errorMessage, errorDetails) = BuildErrorDetails(ex, "Load models");
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    async Task SendPrompt()
+    {
+        output = string.Empty;
+        errorMessage = null;
+        errorDetails = null;
+
+        if (string.IsNullOrEmpty(selectedModel))
+        {
+            errorMessage = "No model selected.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            errorMessage = "Prompt is empty.";
+            return;
+        }
+
+        Logger.LogInformation("Sending prompt to model: {Model}. Prompt length: {Len}", selectedModel, prompt.Length);
+        Logger.LogInformation("Parameters: MaxTokens={MaxTokens}, Temperature={Temperature}, TopP={TopP}, Format=json", 
+            maxTokens, temperature, topP);
+        
+        try
+        {
+            // Create request with all parameters
+            var formattedPrompt = OllamaService.GetFormattedPrompt(prompt);
+            var request = new OllamaPromptRequest
+            {
+                model = selectedModel!,
+                prompt = formattedPrompt,
+                stream = stream,
+                format = "json",
+                keep_alive = keepAlive,
+                max_tokens = maxTokens,
+                temperature = temperature,
+                top_p = topP,
+                num_predictions = numPredictions
+            };
+
+            output = await OllamaService.SendPromptAsync(request);
+            
+            // Try to parse the structured output
+            var parsedOutput = OllamaService.TryParseVideoSceneOutput(output);
+            OutputState.Set(selectedModel, prompt, output, parsedOutput);
+            
+            Logger.LogInformation("Received response. Length: {Len}, Parsed: {Parsed}", 
+                output?.Length ?? 0, parsedOutput != null);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error sending prompt or receiving response from Ollama.");
+            (errorMessage, errorDetails) = BuildErrorDetails(ex, "Send prompt");
+        }
+    }
+
+    (string summary, string details) BuildErrorDetails(Exception ex, string operation)
+    {
+        var type = ex.GetType().FullName;
+        var message = ex.Message;
+        string? status = null;
+        if (ex is HttpRequestException httpEx)
+        {
+            status = httpEx.StatusCode?.ToString();
+        }
+        var inner = ex.InnerException?.GetType().FullName + ": " + ex.InnerException?.Message;
+        var stack = ex.StackTrace;
+
+        var summary = $"{operation} failed: {message}" + (status is not null ? $" (HTTP {status})" : "") +
+                      ". Ensure Ollama is running at http://localhost:11434 and the API is reachable.";
+
+        var sb = new System.Text.StringBuilder();
+        sb.AppendLine($"Operation: {operation}");
+        sb.AppendLine($"Exception: {type}");
+        if (status is not null) sb.AppendLine($"StatusCode: {status}");
+        sb.AppendLine($"Message: {message}");
+        if (!string.IsNullOrWhiteSpace(inner)) sb.AppendLine($"Inner: {inner}");
+        if (!string.IsNullOrWhiteSpace(stack)) sb.AppendLine("Stack:").AppendLine(stack);
+        return (summary, sb.ToString());
+    }
+}

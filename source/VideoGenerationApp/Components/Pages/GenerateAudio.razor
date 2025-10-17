@@ -1,0 +1,462 @@
+@page "/generate-audio"
+@using static Microsoft.AspNetCore.Components.Web.RenderMode
+@rendermode InteractiveServer
+@using VideoGenerationApp.Services
+@using VideoGenerationApp.Services.Generation
+@using VideoGenerationApp.Dto
+@inject IComfyUIAudioService ComfyUIAudioService
+@inject AudioGenerationWorkflow AudioWorkflow
+@inject IGenerationQueueService QueueService
+@inject OllamaOutputState OutputState
+@inject ILogger<GenerateAudio> Logger
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<PageTitle>Generate Audio - Video Generation App</PageTitle>
+
+<div class="container-fluid">
+    <div class="row">
+        <div class="col-12">
+            <h3 class="mb-4">
+                <i class="bi bi-music-note-beamed me-2"></i>
+                Generate Audio
+            </h3>
+        </div>
+    </div>
+
+    @if (errorMessage != null)
+    {
+        <div class="alert alert-danger">
+            <i class="bi bi-exclamation-triangle me-2"></i>
+            <strong>Error:</strong> @errorMessage
+            @if (!string.IsNullOrWhiteSpace(errorDetails))
+            {
+                <details class="mt-2">
+                    <summary>Technical Details</summary>
+                    <pre class="mb-0 mt-2" style="white-space:pre-wrap; font-size: 0.875rem;">@errorDetails</pre>
+                </details>
+            }
+        </div>
+    }
+
+    <div class="row">
+        <div class="col-lg-8">
+            <!-- Audio Configuration Section -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-music-note-beamed me-2"></i>ACE Step Audio Configuration</h5>
+                
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="modelSelect">
+                                Audio Model
+                                <i class="bi bi-question-circle tooltip-icon" title="Select the audio generation model to use"></i>
+                            </label>
+                            <select id="modelSelect" class="form-select" @bind="workflowConfig.CheckpointName" disabled="@isLoadingModels">
+                                @if (isLoadingModels)
+                                {
+                                    <option disabled selected>Loading models...</option>
+                                }
+                                else if (availableModels == null || !availableModels.Any())
+                                {
+                                    <option disabled selected>No audio models found</option>
+                                }
+                                else
+                                {
+                                    @foreach (var model in availableModels)
+                                    {
+                                        <option value="@model">@model</option>
+                                    }
+                                }
+                            </select>
+                            @if (availableModels != null && availableModels.Any())
+                            {
+                                <small class="form-text text-muted">@availableModels.Count model(s) available</small>
+                            }
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="tags">
+                                Tags (Genre, Voice, Style)
+                                <i class="bi bi-question-circle tooltip-icon" title="Describe the musical style, genre, voice type, etc."></i>
+                            </label>
+                            <textarea id="tags" class="form-control" rows="2" @bind="workflowConfig.Tags" 
+                                placeholder="e.g., pop, female voice, catchy melody, upbeat"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="lyrics">
+                                Lyrics
+                                <i class="bi bi-question-circle tooltip-icon" title="Enter the lyrics for the song. Use [verse], [chorus], [bridge] tags to structure"></i>
+                            </label>
+                            <textarea id="lyrics" class="form-control" rows="6" @bind="workflowConfig.Lyrics" 
+                                placeholder="[verse]&#10;In the silence of the night&#10;Stars are shining bright&#10;[chorus]&#10;Sing with me tonight&#10;Everything will be alright"></textarea>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="lyricsStrength">
+                                Lyrics Strength
+                                <i class="bi bi-question-circle tooltip-icon" title="How strictly to follow the lyrics (0.0-1.0)"></i>
+                            </label>
+                            <input id="lyricsStrength" type="number" class="form-control" step="0.01" min="0" max="1" 
+                                @bind="workflowConfig.LyricsStrength" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="audioDuration">
+                                Duration (seconds)
+                                <i class="bi bi-question-circle tooltip-icon" title="Length of the generated audio in seconds"></i>
+                            </label>
+                            <input id="audioDuration" type="number" class="form-control" step="1" min="30" max="300" 
+                                @bind="workflowConfig.AudioDurationSeconds" />
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="steps">
+                                Generation Steps
+                                <i class="bi bi-question-circle tooltip-icon" title="Number of denoising steps (higher = better quality, slower)"></i>
+                            </label>
+                            <input id="steps" type="number" class="form-control" min="20" max="100" 
+                                @bind="workflowConfig.Steps" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="cfgScale">
+                                CFG Scale
+                                <i class="bi bi-question-circle tooltip-icon" title="How closely to follow the prompt (1-20, higher = more adherence)"></i>
+                            </label>
+                            <input id="cfgScale" type="number" class="form-control" step="0.1" min="1" max="20" 
+                                @bind="workflowConfig.CFGScale" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="modelShift">
+                                Model Shift
+                                <i class="bi bi-question-circle tooltip-icon" title="SD3 sampling shift parameter (1-10)"></i>
+                            </label>
+                            <input id="modelShift" type="number" class="form-control" step="0.1" min="1" max="10" 
+                                @bind="workflowConfig.ModelShift" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="tonemapMultiplier">
+                                Tonemap Multiplier
+                                <i class="bi bi-question-circle tooltip-icon" title="Audio dynamics control (0.1-2.0)"></i>
+                            </label>
+                            <input id="tonemapMultiplier" type="number" class="form-control" step="0.1" min="0.1" max="2" 
+                                @bind="workflowConfig.TonemapMultiplier" />
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="seed">
+                                Seed
+                                <i class="bi bi-question-circle tooltip-icon" title="Random seed for reproducible results (-1 for random)"></i>
+                            </label>
+                            <input id="seed" type="number" class="form-control" @bind="workflowConfig.Seed" />
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-2 mt-3">
+                    <button class="btn btn-outline-secondary" @onclick="LoadFromVideoScene" 
+                        disabled="@(OutputState.ParsedOutput?.audio == null)">
+                        <i class="bi bi-arrow-down-circle me-2"></i>Load from Video Scene
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="ResetToDefaults">
+                        <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
+                    </button>
+                </div>
+            </div>
+
+            <!-- ComfyUI Status and Generation -->
+            <div class="parameter-section">
+                <h5><i class="bi bi-play-circle me-2"></i>Audio Generation</h5>
+                
+                <div class="row mb-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label>ComfyUI Status:</label>
+                            <div class="d-flex align-items-center">
+                                <span class="badge @(isComfyUIRunning ? "bg-success" : "bg-danger") me-2">
+                                    @(isComfyUIRunning ? "Running" : "Stopped")
+                                </span>
+                                <button class="btn btn-sm btn-outline-secondary" @onclick="CheckComfyUIStatus">
+                                    <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="d-flex gap-2">
+                    <button class="btn btn-primary" @onclick="GenerateAudioAsync" 
+                        disabled="@(!isComfyUIRunning || string.IsNullOrWhiteSpace(workflowConfig.Tags))">
+                        <i class="bi bi-play-fill me-2"></i>Queue Audio Generation
+                    </button>
+                    <button class="btn btn-outline-secondary" @onclick="ClearAudio">
+                        <i class="bi bi-trash me-2"></i>Clear Audio
+                    </button>
+                    <a href="/generation-queue" class="btn btn-outline-info">
+                        <i class="bi bi-list-task me-2"></i>View Queue
+                    </a>
+                </div>
+            </div>
+
+            <!-- Video Scene Content (if available) -->
+            @if (OutputState.ParsedOutput != null)
+            {
+                <div class="parameter-section">
+                    <h5><i class="bi bi-file-text me-2"></i>Video Scene Reference</h5>
+                    <div class="card">
+                        <div class="card-body">
+                            <p><strong>Narrative:</strong> @OutputState.ParsedOutput.narrative</p>
+                            <p><strong>Mood:</strong> @OutputState.ParsedOutput.tone (@OutputState.ParsedOutput.emotion)</p>
+                            @if (OutputState.ParsedOutput.audio != null)
+                            {
+                                <p><strong>Audio Guidance:</strong> @OutputState.ParsedOutput.audio.background_music 
+                                   (@OutputState.ParsedOutput.audio.audio_mood)</p>
+                            }
+                        </div>
+                    </div>
+                </div>
+            }
+        </div>
+
+        <!-- Audio Player Section -->
+        <div class="col-lg-4">
+            <div class="parameter-section">
+                <h5><i class="bi bi-volume-up me-2"></i>Generated Audio</h5>
+                
+                @if (!string.IsNullOrEmpty(currentAudioPath))
+                {
+                    <div class="form-group">
+                        <audio controls class="w-100 mb-3">
+                            <source src="@currentAudioPath" type="audio/wav">
+                            <source src="@currentAudioPath" type="audio/mpeg">
+                            Your browser does not support the audio element.
+                        </audio>
+                        
+                        <div class="text-muted small mb-2">
+                            <i class="bi bi-info-circle me-1"></i>
+                            Generated: @(OutputState.ParsedOutput?.audio_generated_at?.ToString("yyyy-MM-dd HH:mm:ss") ?? "Unknown")
+                        </div>
+                        
+                        <a href="@currentAudioPath" download class="btn btn-outline-primary btn-sm">
+                            <i class="bi bi-download me-1"></i>Download Audio
+                        </a>
+                    </div>
+                }
+                else
+                {
+                    <div class="text-center py-4 text-muted">
+                        <i class="bi bi-music-note display-4"></i>
+                        <p class="mt-2">No audio generated yet.</p>
+                        <p class="small">Configure settings and click Generate Audio.</p>
+                    </div>
+                }
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    private bool isComfyUIRunning = false;
+    private bool isLoadingModels = false;
+    private string? errorMessage;
+    private string? errorDetails;
+    private string currentAudioPath = "";
+    private List<string> availableModels = new List<string>();
+    
+    // Audio workflow configuration
+    private AudioWorkflowConfig workflowConfig = new AudioWorkflowConfig();
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Subscribe to output state changes
+        OutputState.Changed += StateHasChanged;
+        
+        // Get current workflow configuration
+        workflowConfig = ComfyUIAudioService.GetWorkflowConfig();
+        
+        // Check ComfyUI status
+        await CheckComfyUIStatus();
+        
+        // Load available models if ComfyUI is running
+        if (isComfyUIRunning)
+        {
+            await LoadAvailableModels();
+        }
+        
+        // Load current audio if available
+        if (OutputState.ParsedOutput?.audio_file_path != null)
+        {
+            currentAudioPath = OutputState.ParsedOutput.audio_file_path;
+        }
+    }
+
+    private async Task CheckComfyUIStatus()
+    {
+        try
+        {
+            isComfyUIRunning = await ComfyUIAudioService.IsComfyUIRunningAsync();
+            Logger.LogInformation("ComfyUI status check: {Status}", isComfyUIRunning ? "Running" : "Stopped");
+            
+            // Load models when ComfyUI status changes to running
+            if (isComfyUIRunning && !availableModels.Any())
+            {
+                await LoadAvailableModels();
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error checking ComfyUI status");
+            isComfyUIRunning = false;
+        }
+        StateHasChanged();
+    }
+
+    private async Task LoadAvailableModels()
+    {
+        try
+        {
+            isLoadingModels = true;
+            StateHasChanged();
+            
+            Logger.LogInformation("Loading available audio models from ComfyUI");
+            availableModels = await ComfyUIAudioService.GetAudioModelsAsync();
+            
+            // If no audio-specific models found, fall back to all checkpoints
+            if (!availableModels.Any())
+            {
+                Logger.LogWarning("No audio-specific models found, loading all checkpoints");
+                availableModels = await ComfyUIAudioService.GetAvailableModelsAsync("CheckpointLoaderSimple");
+            }
+            
+            // If current checkpoint is not in the list and list is not empty, select the first one
+            if (availableModels.Any() && !availableModels.Contains(workflowConfig.CheckpointName))
+            {
+                workflowConfig.CheckpointName = availableModels[0];
+                Logger.LogInformation("Selected default model: {Model}", workflowConfig.CheckpointName);
+            }
+            
+            Logger.LogInformation("Loaded {Count} audio models", availableModels.Count);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error loading available models");
+            errorMessage = "Failed to load available models";
+            errorDetails = ex.ToString();
+        }
+        finally
+        {
+            isLoadingModels = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task GenerateAudioAsync()
+    {
+        Logger.LogInformation("🎵 GenerateAudioAsync method called - starting audio generation process");
+        
+        if (string.IsNullOrWhiteSpace(workflowConfig.Tags))
+        {
+            Logger.LogWarning("🎵 Audio generation cancelled - no tags provided");
+            errorMessage = "Please enter tags for the audio style.";
+            return;
+        }
+
+        try
+        {
+            errorMessage = null;
+            errorDetails = null;
+            
+            // Generate a user-friendly name from the tags and lyrics
+            var taskName = !string.IsNullOrWhiteSpace(workflowConfig.Lyrics) && workflowConfig.Lyrics.Length > 10
+                ? $"{workflowConfig.Tags} - {workflowConfig.Lyrics.Substring(0, Math.Min(30, workflowConfig.Lyrics.Length))}..."
+                : workflowConfig.Tags;
+            
+            if (taskName.Length > 80)
+                taskName = taskName.Substring(0, 77) + "...";
+            
+            Logger.LogInformation("🎵 Calling AudioWorkflow.GenerateAsync with task name: {TaskName}", taskName);
+            
+            // Use the new workflow service instead of the queue service directly
+            var taskId = await AudioWorkflow.GenerateAsync(taskName, workflowConfig);
+            
+            Logger.LogInformation("🎵 AudioWorkflow returned task ID: {TaskId}", taskId);
+            
+            // Show success message
+            await JSRuntime.InvokeVoidAsync("alert", 
+                $"ACE Step audio generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
+            
+            Logger.LogInformation("🎵 ACE Step audio generation queued with Task ID: {TaskId}", taskId);
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "🎵 Error queuing ACE Step audio generation");
+            errorMessage = $"Failed to queue audio generation: {ex.Message}";
+            errorDetails = ex.ToString();
+        }
+        
+        StateHasChanged();
+    }
+
+    private void LoadFromVideoScene()
+    {
+        if (OutputState.ParsedOutput?.audio != null)
+        {
+            var audio = OutputState.ParsedOutput.audio;
+            
+            // Build tags from video scene audio information
+            var tagParts = new List<string>();
+            
+            if (!string.IsNullOrEmpty(audio.background_music))
+                tagParts.Add(audio.background_music);
+                
+            if (!string.IsNullOrEmpty(audio.audio_mood))
+                tagParts.Add(audio.audio_mood);
+            
+            // Also consider the overall tone and emotion
+            if (!string.IsNullOrEmpty(OutputState.ParsedOutput.tone))
+                tagParts.Add(OutputState.ParsedOutput.tone);
+                
+            if (!string.IsNullOrEmpty(OutputState.ParsedOutput.emotion))
+                tagParts.Add(OutputState.ParsedOutput.emotion);
+            
+            workflowConfig.Tags = string.Join(", ", tagParts);
+            
+            // Create sample lyrics based on the narrative
+            if (!string.IsNullOrEmpty(OutputState.ParsedOutput.narrative))
+            {
+                var narrative = OutputState.ParsedOutput.narrative;
+                workflowConfig.Lyrics = $"[verse]\n{narrative.Substring(0, Math.Min(100, narrative.Length))}\n[chorus]\nSing with me tonight\nEverything will be alright";
+            }
+        }
+        
+        StateHasChanged();
+    }
+
+    private void ResetToDefaults()
+    {
+        workflowConfig = new AudioWorkflowConfig();
+        StateHasChanged();
+    }
+
+    private void ClearAudio()
+    {
+        currentAudioPath = "";
+        if (OutputState.ParsedOutput != null)
+        {
+            OutputState.ParsedOutput.audio_file_path = "";
+            OutputState.ParsedOutput.audio_generated_at = null;
+        }
+        StateHasChanged();
+    }
+
+    public void Dispose()
+    {
+        OutputState.Changed -= StateHasChanged;
+    }
+}

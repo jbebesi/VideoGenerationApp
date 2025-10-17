@@ -1,0 +1,168 @@
+﻿@using VideoGenerationApp.Services
+@using VideoGenerationApp.Dto
+@inject IGenerationQueueService QueueService
+@inject ILogger<NavMenu> Logger
+@implements IDisposable
+
+<div class="top-row ps-3 navbar navbar-dark">
+    <div class="container-fluid">
+        <a class="navbar-brand" href="">VideoGenerationApp</a>
+    </div>
+</div>
+
+<input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+<div class="nav-scrollable" onclick="document.querySelector('.navbar-toggler').click()">
+    <nav class="nav flex-column">
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                <span class="bi bi-house-door-fill-nav-menu" aria-hidden="true"></span> Home
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="ollama-models">
+                <span class="bi bi-robot" aria-hidden="true"></span> Ollama Models
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="generate-audio">
+                <span class="bi bi-music-note-beamed" aria-hidden="true"></span> Generate Audio
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="generate-image">
+                <span class="bi bi-image" aria-hidden="true"></span> Generate Image
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="generate-video">
+                <span class="bi bi-camera-video" aria-hidden="true"></span> Generate Video
+            </NavLink>
+        </div>
+
+        <div class="nav-item px-3">
+            <NavLink class="nav-link" href="generation-queue">
+                <span class="bi bi-list-task" aria-hidden="true"></span> Generation Queue
+            </NavLink>
+        </div>
+    </nav>
+    
+    <!-- Generation Status Widget -->
+    <div class="generation-status-widget mt-auto p-3">
+        <h6 class="text-muted mb-2">
+            <i class="bi bi-activity me-2"></i>Generation Status
+        </h6>
+        <div class="status-summary">
+            <div class="status-item d-flex justify-content-between">
+                <span class="text-sm">Active:</span>
+                <span class="badge bg-primary">@activeCount</span>
+            </div>
+            <div class="status-item d-flex justify-content-between">
+                <span class="text-sm">Queued:</span>
+                <span class="badge bg-warning">@queuedCount</span>
+            </div>
+            <div class="status-item d-flex justify-content-between">
+                <span class="text-sm">Completed:</span>
+                <span class="badge bg-success">@completedCount</span>
+            </div>
+            <div class="text-center mt-1">
+                <small class="text-muted">Updated: @DateTime.Now.ToString("HH:mm:ss")</small>
+            </div>
+        </div>
+        <div class="mt-2">
+            <a href="/generation-queue" class="btn btn-outline-info btn-sm w-100">
+                <i class="bi bi-eye me-1"></i>View Details
+            </a>
+        </div>
+    </div>
+</div>
+
+@code {
+    private int activeCount = 0;
+    private int queuedCount = 0;
+    private int completedCount = 0;
+    private Timer? statusTimer;
+
+    protected override async Task OnInitializedAsync()
+    {
+        Logger.LogInformation("NavMenu component initializing, subscribing to events");
+        
+        // Subscribe to queue status changes  
+        QueueService.TaskStatusChanged += OnTaskStatusChanged;
+        
+        // Start periodic updates every 5 seconds for more responsive sidebar
+        statusTimer = new Timer(UpdateCounts, null, TimeSpan.Zero, TimeSpan.FromSeconds(5));
+        
+        // Initial update
+        await UpdateCounts();
+        
+        Logger.LogInformation("NavMenu component initialized");
+    }
+
+    private async void OnTaskStatusChanged(object task)
+    {
+        Logger.LogInformation("NavMenu received TaskStatusChanged event for task object: {TaskType}", task?.GetType().Name);
+        if (task is GenerationTask genTask)
+        {
+            Logger.LogInformation("NavMenu TaskStatusChanged - Task {TaskId} status: {Status}", genTask.Id, genTask.Status);
+        }
+        await UpdateCounts();
+        await InvokeAsync(() =>
+        {
+            StateHasChanged();
+            Logger.LogInformation("NavMenu StateHasChanged called after task status change");
+        });
+    }
+
+    private async void UpdateCounts(object? state = null)
+    {
+        await UpdateCounts();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task UpdateCounts()
+    {
+        try
+        {
+            var allTasks = await QueueService.GetAllTasksAsync();
+            
+            var newActiveCount = allTasks.Count(t => t.Status.ToString() == "Processing");
+            var newQueuedCount = allTasks.Count(t => t.Status.ToString() == "Queued" || t.Status.ToString() == "Pending");
+            var newCompletedCount = allTasks.Count(t => t.Status.ToString() == "Completed");
+            
+            if (newActiveCount != activeCount || newQueuedCount != queuedCount || newCompletedCount != completedCount)
+            {
+                Logger.LogInformation("NavMenu updating counts: Active={Active}, Queued={Queued}, Completed={Completed}", 
+                    newActiveCount, newQueuedCount, newCompletedCount);
+                
+                activeCount = newActiveCount;
+                queuedCount = newQueuedCount;
+                completedCount = newCompletedCount;
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error updating NavMenu counts");
+            // Silently handle errors to avoid breaking navigation
+            activeCount = queuedCount = completedCount = 0;
+        }
+    }
+
+    public void Dispose()
+    {
+        try
+        {
+            QueueService.TaskStatusChanged -= OnTaskStatusChanged;
+        }
+        catch (Exception)
+        {
+            // Ignore errors during cleanup
+        }
+        statusTimer?.Dispose();
+    }
+}
+

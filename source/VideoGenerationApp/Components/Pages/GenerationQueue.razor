@@ -1,0 +1,353 @@
+@page "/generation-queue"
+@using VideoGenerationApp.Dto
+@using VideoGenerationApp.Services
+@using Microsoft.AspNetCore.Components
+@inject IGenerationQueueService QueueService
+@inject IJSRuntime JSRuntime
+@implements IDisposable
+
+<div class="generation-queue-container">
+    <div class="page-header">
+        <h1>Audio Generation Queue</h1>
+        <div class="queue-actions">
+            <button class="btn btn-primary" @onclick="ShowQueueDialog">
+                <i class="fas fa-plus"></i> Queue New Generation
+            </button>
+            <button class="btn btn-outline-secondary" @onclick="RefreshQueue">
+                <i class="fas fa-sync-alt"></i> Refresh Now
+            </button>
+        </div>
+    </div>
+
+    <div class="queue-stats">
+        <div class="stat-card">
+            <div class="stat-value">@_tasks.Count(t => t.Status == GenerationStatus.Processing)</div>
+            <div class="stat-label">Processing</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@_tasks.Count(t => t.Status == GenerationStatus.Queued || t.Status == GenerationStatus.Pending)</div>
+            <div class="stat-label">Queued</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@_tasks.Count(t => t.Status == GenerationStatus.Completed)</div>
+            <div class="stat-label">Completed</div>
+        </div>
+        <div class="stat-card">
+            <div class="stat-value">@_tasks.Count(t => t.Status == GenerationStatus.Failed)</div>
+            <div class="stat-label">Failed</div>
+        </div>
+        <div class="update-indicator">
+            <small class="text-muted">Last updated: @DateTime.Now.ToString("HH:mm:ss")</small>
+        </div>
+    </div>
+
+    <div class="tasks-container">
+        @if (!_tasks.Any())
+        {
+            <div class="empty-state">
+                <i class="fas fa-music fa-3x"></i>
+                <h3>No generations yet</h3>
+                <p>Click "Queue New Generation" to start creating audio!</p>
+            </div>
+        }
+        else
+        {
+            @foreach (var task in _tasks.OrderByDescending(t => t.CreatedAt))
+            {
+                <div class="task-card @GetStatusClass(task.Status)">
+                    <div class="task-header">
+                        <div class="task-title">
+                            <h4>@task.Name</h4>
+                            <span class="task-status @GetStatusClass(task.Status)">@task.Status</span>
+                        </div>
+                        <div class="task-actions">
+                            @if (task.Status == GenerationStatus.Pending || task.Status == GenerationStatus.Queued || task.Status == GenerationStatus.Processing)
+                            {
+                                <button class="btn btn-sm btn-outline-danger" @onclick="() => CancelTask(task.Id)">
+                                    <i class="fas fa-times"></i> Cancel
+                                </button>
+                            }
+                        </div>
+                    </div>
+                    
+                    <div class="task-details">
+                        <div class="task-info">
+                            <div class="info-row">
+                                <strong>Prompt:</strong> @task.PositivePrompt
+                            </div>
+                            @if (!string.IsNullOrEmpty(task.PromptId))
+                            {
+                                <div class="info-row">
+                                    <strong>ComfyUI ID:</strong> @task.PromptId
+                                </div>
+                            }
+                            @if (task.QueuePosition.HasValue)
+                            {
+                                <div class="info-row">
+                                    <strong>Queue Position:</strong> 
+                                    @if (task.QueuePosition == 0)
+                                    {
+                                        <span class="executing">Currently Executing</span>
+                                    }
+                                    else
+                                    {
+                                        <span>#@task.QueuePosition</span>
+                                    }
+                                </div>
+                            }
+                            <div class="info-row">
+                                <strong>Created:</strong> @task.CreatedAt.ToString("yyyy-MM-dd HH:mm:ss")
+                            </div>
+                            @if (task.CompletedAt.HasValue)
+                            {
+                                <div class="info-row">
+                                    <strong>Completed:</strong> @task.CompletedAt.Value.ToString("yyyy-MM-dd HH:mm:ss")
+                                    <span class="duration">(Duration: @GetDurationString(task.CreatedAt, task.CompletedAt.Value))</span>
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(task.ErrorMessage))
+                            {
+                                <div class="info-row error">
+                                    <strong>Error:</strong> @task.ErrorMessage
+                                </div>
+                            }
+                            @if (!string.IsNullOrEmpty(task.Notes))
+                            {
+                                <div class="info-row">
+                                    <strong>Notes:</strong> @task.Notes
+                                </div>
+                            }
+                        </div>
+                        
+                        @if (task.Status == GenerationStatus.Processing)
+                        {
+                            <div class="progress-indicator">
+                                <div class="spinner"></div>
+                                <span>Processing...</span>
+                            </div>
+                        }
+                    </div>
+
+                    @if (task.Status == GenerationStatus.Completed && !string.IsNullOrEmpty(task.GeneratedFilePath))
+                    {
+                        @if (task.Type == GenerationType.Audio)
+                        {
+                            <div class="audio-player">
+                                <audio controls>
+                                    <source src="@task.GeneratedFilePath" type="audio/wav">
+                                    Your browser does not support the audio element.
+                                </audio>
+                            </div>
+                        }
+                        else if (task.Type == GenerationType.Image)
+                        {
+                            <div class="image-preview">
+                                <img src="@task.GeneratedFilePath" alt="Generated Image" style="max-width: 100%; height: auto; border-radius: 8px;" />
+                            </div>
+                        }
+                        else if (task.Type == GenerationType.Video)
+                        {
+                            <div class="video-player">
+                                <video controls style="max-width: 100%; height: auto; border-radius: 8px;">
+                                    <source src="@task.GeneratedFilePath" type="video/mp4">
+                                    Your browser does not support the video element.
+                                </video>
+                            </div>
+                        }
+                    }
+                </div>
+            }
+        }
+    </div>
+</div>
+
+<!-- Queue New Generation Dialog -->
+@if (_showQueueDialog)
+{
+    <div class="modal-overlay" @onclick="HideQueueDialog">
+        <div class="modal-content" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>Queue New Audio Generation</h3>
+                <button class="btn-close" @onclick="HideQueueDialog">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="taskName">Generation Name:</label>
+                    <input id="taskName" class="form-control" @bind="_newTaskName" placeholder="My awesome audio track" />
+                </div>
+                <div class="form-group">
+                    <label for="taskPrompt">Audio Description:</label>
+                    <textarea id="taskPrompt" class="form-control" @bind="_newTaskPrompt" rows="3" 
+                              placeholder="electronic dance music with heavy bass"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="taskDuration">Duration (seconds):</label>
+                    <input id="taskDuration" class="form-control" type="number" @bind="_newTaskDuration" min="1" max="180" />
+                </div>
+                <div class="form-group">
+                    <label for="taskNotes">Notes (optional):</label>
+                    <textarea id="taskNotes" class="form-control" @bind="_newTaskNotes" rows="2" 
+                              placeholder="Additional notes about this generation"></textarea>
+                </div>
+            </div>
+            <div class="modal-footer">
+                <button class="btn btn-secondary" @onclick="HideQueueDialog">Cancel</button>
+                <button class="btn btn-primary" @onclick="QueueGeneration" disabled="@_isQueueing">
+                    @if (_isQueueing)
+                    {
+                        <span class="spinner-sm"></span> @("Queueing...")
+                    }
+                    else
+                    {
+                        <i class="fas fa-plus"></i> @("Queue Generation")
+                    }
+                </button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<GenerationTask> _tasks = new();
+    private Timer? _refreshTimer;
+    
+    // Dialog state
+    private bool _showQueueDialog = false;
+    private bool _isQueueing = false;
+    private string _newTaskName = "";
+    private string _newTaskPrompt = "";
+    private float _newTaskDuration = 47.6f;
+    private string _newTaskNotes = "";
+
+    protected override async Task OnInitializedAsync()
+    {
+        QueueService.TaskStatusChanged += OnTaskStatusChanged;
+        await RefreshTasksAsync();
+        
+        // Refresh UI every 3 seconds for more responsive updates
+        _refreshTimer = new Timer(async _ => await InvokeAsync(async () =>
+        {
+            await RefreshTasksAsync();
+            StateHasChanged();
+        }), null, TimeSpan.FromSeconds(3), TimeSpan.FromSeconds(3));
+    }
+
+    private async Task RefreshTasksAsync()
+    {
+        _tasks = (await QueueService.GetAllTasksAsync()).ToList();
+    }
+
+    private void RefreshTasks()
+    {
+        _tasks = QueueService.GetAllTasks().ToList();
+    }
+
+    private void OnTaskStatusChanged(GenerationTask task)
+    {
+        // Immediately update when any task status changes
+        InvokeAsync(async () =>
+        {
+            await RefreshTasksAsync();
+            StateHasChanged();
+        });
+    }
+
+    private void RefreshQueue()
+    {
+        InvokeAsync(async () =>
+        {
+            await RefreshTasksAsync();
+            StateHasChanged();
+        });
+    }
+
+    private void ShowQueueDialog()
+    {
+        _newTaskName = "";
+        _newTaskPrompt = "";
+        _newTaskDuration = 47.6f;
+        _newTaskNotes = "";
+        _showQueueDialog = true;
+    }
+
+    private void HideQueueDialog()
+    {
+        _showQueueDialog = false;
+        _isQueueing = false;
+    }
+
+    private async Task QueueGeneration()
+    {
+        if (string.IsNullOrWhiteSpace(_newTaskName) || string.IsNullOrWhiteSpace(_newTaskPrompt))
+        {
+            await JSRuntime.InvokeVoidAsync("alert", "Please fill in the name and prompt fields");
+            return;
+        }
+
+        _isQueueing = true;
+        StateHasChanged();
+
+        try
+        {
+            var config = new AudioWorkflowConfig
+            {
+                Tags = _newTaskPrompt,
+                AudioDurationSeconds = _newTaskDuration
+            };
+
+            await QueueService.QueueGenerationAsync(_newTaskName, config, _newTaskNotes);
+            HideQueueDialog();
+            RefreshTasks();
+        }
+        catch (Exception ex)
+        {
+            await JSRuntime.InvokeVoidAsync("alert", $"Error queueing generation: {ex.Message}");
+        }
+        finally
+        {
+            _isQueueing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task CancelTask(string taskId)
+    {
+        if (await JSRuntime.InvokeAsync<bool>("confirm", "Are you sure you want to cancel this task?"))
+        {
+            await QueueService.CancelTaskAsync(taskId);
+            await RefreshTasksAsync();
+            StateHasChanged();
+        }
+    }
+
+    private string GetStatusClass(GenerationStatus status)
+    {
+        return status switch
+        {
+            GenerationStatus.Pending => "status-pending",
+            GenerationStatus.Queued => "status-queued",
+            GenerationStatus.Processing => "status-processing",
+            GenerationStatus.Completed => "status-completed",
+            GenerationStatus.Failed => "status-failed",
+            GenerationStatus.Cancelled => "status-cancelled",
+            _ => ""
+        };
+    }
+
+    private string GetDurationString(DateTime start, DateTime end)
+    {
+        var duration = end - start;
+        if (duration.TotalMinutes < 1)
+            return $"{duration.Seconds}s";
+        else if (duration.TotalHours < 1)
+            return $"{duration.Minutes}m {duration.Seconds}s";
+        else
+            return $"{duration.Hours}h {duration.Minutes}m";
+    }
+
+    public void Dispose()
+    {
+        QueueService.TaskStatusChanged -= OnTaskStatusChanged;
+        _refreshTimer?.Dispose();
+    }
+}

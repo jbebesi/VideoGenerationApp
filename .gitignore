@@ -361,4 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
-VideoGenerationApp/wwwroot/audio/
+source/VideoGenerationApp/wwwroot/audio/
+source/VideoGenerationApp/wwwroot/image/
+source/VideoGenerationApp/wwwroot/video/
