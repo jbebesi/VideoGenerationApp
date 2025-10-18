@@ -75,13 +75,13 @@ namespace VideoGenerationApp.Dto
             string positivePrompt,
             string negativePrompt,
             string imagePath,
-            string audioPath = null,
+            string? audioPath = null,
             string unetModel = "wan2.2_s2v_14B_fp8_scaled.safetensors",
             string clipModel = "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
             string clipType = "wan",
             string vaeModel = "wan_2.1_vae.safetensors",
             string audioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
-            string loraModel = "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors",
+            string? loraModel = "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors",
             float loraStrength = 1.0f,
             float modelSamplingShift = 8.0f,
             int width = 640,
@@ -147,7 +147,7 @@ namespace VideoGenerationApp.Dto
             workflow.AddNode(new ModelSamplingSD3Node("11", modelNodeId, modelSamplingShift));
 
             // ID 12: WanSoundImageToVideo node
-            string audioEncoderNodeId = !string.IsNullOrEmpty(audioPath) ? "7" : null;
+            string? audioEncoderNodeId = !string.IsNullOrEmpty(audioPath) ? "7" : null;
             if (audioEncoderNodeId != null)
             {
                 workflow.AddNode(new WanSoundImageToVideoNode("12", "8", "9", "3", audioEncoderNodeId, "6", width, height, chunkLength, batchSize));
@@ -185,7 +185,7 @@ namespace VideoGenerationApp.Dto
     {
         public string Id { get; set; }
         public abstract string ClassType { get; }
-        public Dictionary<string, object> Inputs { get; set; } = new Dictionary<string, object>();
+        public Dictionary<string, object?> Inputs { get; set; } = new Dictionary<string, object?>();
 
         protected BaseNode(string id)
         {
@@ -199,7 +199,7 @@ namespace VideoGenerationApp.Dto
         }
 
         // Helper method to add simple values
-        protected void AddInput(string inputName, object value)
+        protected void AddInput(string inputName, object? value)
         {
             Inputs[inputName] = value;
         }
@@ -386,7 +386,7 @@ namespace VideoGenerationApp.Dto
 
         public AudioVideoKSamplerNode(string id, string modelNodeId, string positiveNodeId,
                                     string negativeNodeId, string latentNodeId,
-                                    string audioNodeId = null, int seed = 12345,
+                                    string? audioNodeId = null, int seed = 12345,
                                     int steps = 20, float cfg = 7.0f) : base(id)
         {
             AddConnection("model", modelNodeId, 0);
@@ -436,7 +436,7 @@ namespace VideoGenerationApp.Dto
 
         public override string ClassType => "CLIPLoader";
 
-        public CLIPLoaderNode(string id, string unetModelName, string clipName = null, string type = null) : base(id)
+        public CLIPLoaderNode(string id, string unetModelName, string? clipName = null, string? type = null) : base(id)
         {
             if (!string.IsNullOrEmpty(unetModelName) && ModelCompatibility.ContainsKey(unetModelName))
             {
@@ -580,7 +580,7 @@ namespace VideoGenerationApp.Dto
     {
         public override string ClassType => "CreateVideo";
 
-        public CreateVideoNode(string id, string imagesNodeId, int fps = 16, string audioNodeId = null) : base(id)
+        public CreateVideoNode(string id, string imagesNodeId, int fps = 16, string? audioNodeId = null) : base(id)
         {
             AddConnection("images", imagesNodeId, 0);
             if (!string.IsNullOrEmpty(audioNodeId))
