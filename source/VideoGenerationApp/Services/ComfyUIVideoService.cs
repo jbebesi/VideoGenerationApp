@@ -37,7 +37,7 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Sets the workflow template from JSON (for backward compatibility)
+        /// Sets the workflow template from JSON
         /// </summary>
         public override void SetWorkflowTemplate(string template)
         {
@@ -83,17 +83,14 @@ namespace VideoGenerationApp.Services
             {
                 _logger.LogInformation("Starting video generation with VideoWorkflowWrapper");
 
-                // Check if ComfyUI is running
                 if (!await IsComfyUIRunningAsync())
                 {
                     _logger.LogError("ComfyUI is not running. Please start ComfyUI first.");
                     return "NO";
                 }
 
-                // Create a video generation task
                 var task = new VideoGenerationTask(wrapper, this, _comfyUIClient, _environment);
                 
-                // Submit the task
                 var promptId = await task.SubmitAsync();
                 
                 if (!string.IsNullOrEmpty(promptId))
@@ -111,7 +108,6 @@ namespace VideoGenerationApp.Services
                         return "NO";
                     }
 
-                    // Get generated video file
                     return await GetGeneratedFileAsync(promptId, "video", wrapper.OutputFilename);
                 }
                 
@@ -129,7 +125,6 @@ namespace VideoGenerationApp.Services
         /// </summary>
         public Dictionary<string, object> ConvertWorkflowToComfyUIFormat(ComfyUIAudioWorkflow workflow)
         {
-            // Legacy method retained for interface compatibility: minimal passthrough
             return new Dictionary<string, object>();
         }
 

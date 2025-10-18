@@ -71,7 +71,7 @@ namespace VideoGenerationApp.Dto
         public ImageWorkflowConfig? ImageConfig { get; set; }
         
         /// <summary>
-        /// Legacy audio config property for backward compatibility
+        /// Audio config property
         /// </summary>
         public AudioWorkflowConfig Config 
         { 

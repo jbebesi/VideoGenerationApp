@@ -302,7 +302,7 @@ namespace VideoGenerationApp.IntegrationTests
             Assert.Equal("validation-303", promptId);
             
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             // Verify the workflow structure has all required components
             var prompt = requestData.GetProperty("prompt");
@@ -343,7 +343,7 @@ namespace VideoGenerationApp.IntegrationTests
             Assert.Equal("audio-random-101", promptId);
             
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             var promptJson = JsonSerializer.Serialize(requestData.GetProperty("prompt"));
             
             // Verify workflow contains valid seed (should be replaced with random value)

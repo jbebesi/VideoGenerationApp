@@ -56,7 +56,7 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Updates the image workflow template (for backward compatibility)
+        /// Updates the image workflow template
         /// </summary>
         public override void SetWorkflowTemplate(string template)
         {
@@ -302,7 +302,7 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Extracts configuration from a workflow (for backward compatibility)
+        /// Extracts configuration from a workflow
         /// </summary>
         private void ExtractConfigFromWorkflow(ComfyUIAudioWorkflow workflow)
         {

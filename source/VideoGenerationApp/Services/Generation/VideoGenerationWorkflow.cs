@@ -35,7 +35,6 @@ namespace VideoGenerationApp.Services.Generation
         {
             _logger.LogInformation("Starting video generation: {Name}", name);
 
-            // Create video generation task
             var task = new VideoGenerationTask(wrapper, _videoService, _comfyUIClient, _webHostEnvironment)
             {
                 Name = name,

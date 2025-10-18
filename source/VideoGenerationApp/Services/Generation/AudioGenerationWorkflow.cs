@@ -28,14 +28,12 @@ namespace VideoGenerationApp.Services.Generation
         {
             _logger.LogInformation("Starting audio generation: {Name}", name);
 
-            // Create audio generation task
             var task = new AudioGenerationTask(config, _audioService)
             {
                 Name = name,
                 Notes = notes
             };
 
-            // Queue the task
             var taskId = await _queueService.QueueTaskAsync(task);
 
             _logger.LogInformation("Audio generation queued with task ID: {TaskId}", taskId);

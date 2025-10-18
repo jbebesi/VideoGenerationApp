@@ -21,10 +21,8 @@ builder.Logging.AddConsoleFormatter<CustomTimestampConsoleFormatter, Microsoft.E
 builder.Services.Configure<ComfyUISettings>(
     builder.Configuration.GetSection("ComfyUI"));
 
-// Add ComfyUI Client
 builder.Services.AddComfyUIClient(builder.Configuration);
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
@@ -74,7 +72,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found");
-app.UseStaticFiles(); // Add traditional static files support
+app.UseStaticFiles();
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()

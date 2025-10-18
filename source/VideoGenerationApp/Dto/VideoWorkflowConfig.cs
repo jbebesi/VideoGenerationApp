@@ -134,7 +134,7 @@ namespace VideoGenerationApp.Dto
             // ID 9: Encode negative prompt
             workflow.AddNode(new CLIPTextEncodeNode("9", negativePrompt, "2"));
 
-            string modelNodeId = "1"; // Start with base model
+            string modelNodeId = "1";
             
             // ID 10: Optional LoRA loader (if LoRA model is provided)
             if (!string.IsNullOrEmpty(loraModel))
@@ -355,7 +355,7 @@ namespace VideoGenerationApp.Dto
     // Fix for video generation - need to generate multiple frames properly
     public class VideoLatentNode : BaseNode
     {
-        public override string ClassType => "EmptyLatentImage";  // Create empty latent for video
+        public override string ClassType => "EmptyLatentImage";
 
         public VideoLatentNode(string id, int width = 512, int height = 512, int batchSize = 16) : base(id)
         {
@@ -605,7 +605,6 @@ namespace VideoGenerationApp.Dto
         }
     }
 
-    // Legacy compatibility class to keep older code/tests compiling
     public class VideoWorkflowConfig
     {
         #region Model Set Selection

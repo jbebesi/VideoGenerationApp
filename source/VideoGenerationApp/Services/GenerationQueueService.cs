@@ -31,7 +31,6 @@ namespace VideoGenerationApp.Services
         {
             _logger.LogInformation("Generation Queue Service is starting...");
             
-            // Check for completed tasks every 15 seconds
             _monitorTimer = new Timer(CheckCompletedTasks, null, TimeSpan.FromSeconds(5), TimeSpan.FromSeconds(15));
             
             _logger.LogInformation("Generation Queue Service started successfully");
@@ -61,13 +60,8 @@ namespace VideoGenerationApp.Services
             _logger.LogInformation("Queued new {TaskType} generation task: {TaskId} - {Name}", 
                 task.Type, task.Id, task.Name);
 
-
-
-
-            // Submit task for processing
             await SubmitTaskAsync(task);
             
-            // Convert to legacy GenerationTask for event compatibility
             var legacyTask = ConvertToLegacyTask(task);
             TaskStatusChanged?.Invoke(legacyTask);
             
@@ -75,7 +69,7 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Legacy method for audio generation (backward compatibility)
+        /// Audio generation method (deprecated - use QueueTaskAsync instead)
         /// </summary>
         public async Task<string> QueueGenerationAsync(string name, AudioWorkflowConfig config, string? notes = null)
         {
@@ -84,7 +78,7 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Legacy method for image generation (backward compatibility)
+        /// Image generation method (deprecated - use QueueTaskAsync instead)
         /// </summary>
         public async Task<string> QueueImageGenerationAsync(string name, ImageWorkflowConfig config, string? notes = null)
         {
@@ -93,7 +87,7 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Legacy method for video generation (backward compatibility)
+        /// Video generation method (deprecated - use QueueTaskAsync instead)
         /// </summary>
         public async Task<string> QueueVideoGenerationAsync(string name, VideoWorkflowConfig config, string? notes = null)
         {
@@ -180,7 +174,7 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Cancels a pending or queued task (synchronous version for backward compatibility)
+        /// Cancels a pending or queued task (synchronous version)
         /// </summary>
         public bool CancelTask(string taskId)
         {
@@ -323,7 +317,7 @@ namespace VideoGenerationApp.Services
         }
         
         /// <summary>
-        /// Convert new task format to legacy GenerationTask for backward compatibility
+        /// Convert task format to GenerationTask for UI compatibility
         /// </summary>
         private GenerationTask ConvertToLegacyTask(GenerationTaskBase task)
         {
@@ -354,14 +348,14 @@ namespace VideoGenerationApp.Services
                     legacyTask.ImageConfig = imageTask.Config;
                     break;
                 case GenerationType.Video when task is VideoGenerationTask videoTask:
-                    // No legacy VideoConfig anymore; video workflow is built dynamically
+                    // Video workflow is built dynamically
                     break;
             }
             
             return legacyTask;
         }
 
-        // Legacy model accessor methods - these should be moved to dedicated model services
+        // Model accessor methods - should be moved to dedicated model services
         public async Task<List<string>> GetAudioModelsAsync()
         {
             // TODO: Move to dedicated model service
