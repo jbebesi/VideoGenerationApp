@@ -302,11 +302,67 @@
                 </div>
             </div>
 
-            <!-- Video Scene Content (if available) -->
+            <!-- Multi-Field Ollama Reference -->
+            @if (OutputState.MultiFieldOutput != null)
+            {
+                <div class="parameter-section">
+                    <h5><i class="bi bi-layers me-2"></i>Multi-Field Ollama Output</h5>
+                    <div class="row">
+                        @if (OutputState.HasFieldContent(ContentFieldType.Tags))
+                        {
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-info text-white py-2">
+                                        <small><strong>Tags</strong> (@OutputState.GetFieldContent(ContentFieldType.Tags).Length chars)</small>
+                                    </div>
+                                    <div class="card-body py-2">
+                                        <small>@OutputState.GetFieldContent(ContentFieldType.Tags)</small>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-outline-info" @onclick="() => UseTags()">
+                                                <i class="bi bi-arrow-down me-1"></i>Use as Tags
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @if (OutputState.HasFieldContent(ContentFieldType.Lyrics))
+                        {
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-secondary text-white py-2">
+                                        <small><strong>Lyrics</strong> (@OutputState.GetFieldContent(ContentFieldType.Lyrics).Length chars)</small>
+                                    </div>
+                                    <div class="card-body py-2">
+                                        <small style="white-space: pre-line;">@OutputState.GetFieldContent(ContentFieldType.Lyrics)</small>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-outline-secondary" @onclick="() => UseLyrics()">
+                                                <i class="bi bi-arrow-down me-1"></i>Use as Lyrics
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    
+                    @if (OutputState.HasFieldContent(ContentFieldType.Tags) && OutputState.HasFieldContent(ContentFieldType.Lyrics))
+                    {
+                        <div class="text-center">
+                            <button class="btn btn-primary" @onclick="UseAllAudioContent">
+                                <i class="bi bi-download me-1"></i>Use All Audio Content
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Legacy Video Scene Content (if available) -->
             @if (OutputState.ParsedOutput != null)
             {
                 <div class="parameter-section">
-                    <h5><i class="bi bi-file-text me-2"></i>Video Scene Reference</h5>
+                    <h5><i class="bi bi-file-text me-2"></i>Legacy Video Scene Reference</h5>
                     <div class="card">
                         <div class="card-body">
                             <p><strong>Narrative:</strong> @OutputState.ParsedOutput.narrative</p>
@@ -550,6 +606,39 @@
             OutputState.ParsedOutput.audio_file_path = "";
             OutputState.ParsedOutput.audio_generated_at = null;
         }
+        StateHasChanged();
+    }
+
+    private void UseTags()
+    {
+        if (OutputState.HasFieldContent(ContentFieldType.Tags))
+        {
+            workflowConfig.Tags = OutputState.GetFieldContent(ContentFieldType.Tags);
+            StateHasChanged();
+        }
+    }
+
+    private void UseLyrics()
+    {
+        if (OutputState.HasFieldContent(ContentFieldType.Lyrics))
+        {
+            workflowConfig.Lyrics = OutputState.GetFieldContent(ContentFieldType.Lyrics);
+            StateHasChanged();
+        }
+    }
+
+    private void UseAllAudioContent()
+    {
+        if (OutputState.HasFieldContent(ContentFieldType.Tags))
+        {
+            workflowConfig.Tags = OutputState.GetFieldContent(ContentFieldType.Tags);
+        }
+
+        if (OutputState.HasFieldContent(ContentFieldType.Lyrics))
+        {
+            workflowConfig.Lyrics = OutputState.GetFieldContent(ContentFieldType.Lyrics);
+        }
+        
         StateHasChanged();
     }
 

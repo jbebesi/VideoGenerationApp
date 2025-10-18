@@ -60,8 +60,8 @@ builder.Services.AddSingleton<GenerationQueueService>();
 builder.Services.AddSingleton<IGenerationQueueService>(provider => provider.GetRequiredService<GenerationQueueService>());
 builder.Services.AddHostedService<GenerationQueueService>(provider => provider.GetRequiredService<GenerationQueueService>());
 
-// Per-circuit state for sharing parsed output across pages
-builder.Services.AddScoped<OllamaOutputState>();
+// Circuit-aware state for sharing parsed output across pages and navigation
+builder.Services.AddSingleton<OllamaOutputState>();
 
 var app = builder.Build();
 

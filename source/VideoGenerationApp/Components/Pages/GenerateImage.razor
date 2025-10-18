@@ -188,11 +188,67 @@
                 </button>
             </div>
 
-            <!-- Video Scene Content (if available from Ollama) -->
+            <!-- Multi-Field Ollama Reference -->
+            @if (OutputState.MultiFieldOutput != null)
+            {
+                <div class="parameter-section">
+                    <h5><i class="bi bi-layers me-2"></i>Multi-Field Ollama Output</h5>
+                    <div class="row">
+                        @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+                        {
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-success text-white py-2">
+                                        <small><strong>Positive Prompt</strong> (@OutputState.GetFieldContent(ContentFieldType.PositivePrompt).Length chars)</small>
+                                    </div>
+                                    <div class="card-body py-2">
+                                        <small>@OutputState.GetFieldContent(ContentFieldType.PositivePrompt)</small>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-outline-success" @onclick="() => UsePositivePrompt()">
+                                                <i class="bi bi-arrow-down me-1"></i>Use as Positive Prompt
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+
+                        @if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+                        {
+                            <div class="col-md-6 mb-3">
+                                <div class="card">
+                                    <div class="card-header bg-warning text-dark py-2">
+                                        <small><strong>Negative Prompt</strong> (@OutputState.GetFieldContent(ContentFieldType.NegativePrompt).Length chars)</small>
+                                    </div>
+                                    <div class="card-body py-2">
+                                        <small>@OutputState.GetFieldContent(ContentFieldType.NegativePrompt)</small>
+                                        <div class="mt-2">
+                                            <button class="btn btn-sm btn-outline-warning" @onclick="() => UseNegativePrompt()">
+                                                <i class="bi bi-arrow-down me-1"></i>Use as Negative Prompt
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                    
+                    @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt) && OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+                    {
+                        <div class="text-center">
+                            <button class="btn btn-primary" @onclick="UseAllImagePrompts">
+                                <i class="bi bi-download me-1"></i>Use All Image Prompts
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+
+            <!-- Legacy Video Scene Content (if available from Ollama) -->
             @if (OutputState.ParsedOutput != null)
             {
                 <div class="parameter-section">
-                    <h5><i class="bi bi-file-text me-2"></i>Ollama Scene Reference</h5>
+                    <h5><i class="bi bi-file-text me-2"></i>Legacy Ollama Scene Reference</h5>
                     <div class="card">
                         <div class="card-body">
                             <p><strong>Visual Description:</strong> @OutputState.ParsedOutput.visual_description</p>
@@ -240,6 +296,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        // Subscribe to output state changes to update when new content is generated
+        OutputState.Changed += StateHasChanged;
+
         // Initialize with Ollama visual description if available
         if (OutputState.ParsedOutput != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.visual_description))
         {
@@ -308,6 +367,39 @@
         }
     }
 
+    private void UsePositivePrompt()
+    {
+        if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+        {
+            imageConfig.PositivePrompt = OutputState.GetFieldContent(ContentFieldType.PositivePrompt);
+            StateHasChanged();
+        }
+    }
+
+    private void UseNegativePrompt()
+    {
+        if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+        {
+            imageConfig.NegativePrompt = OutputState.GetFieldContent(ContentFieldType.NegativePrompt);
+            StateHasChanged();
+        }
+    }
+
+    private void UseAllImagePrompts()
+    {
+        if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+        {
+            imageConfig.PositivePrompt = OutputState.GetFieldContent(ContentFieldType.PositivePrompt);
+        }
+
+        if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+        {
+            imageConfig.NegativePrompt = OutputState.GetFieldContent(ContentFieldType.NegativePrompt);
+        }
+        
+        StateHasChanged();
+    }
+
     private void ResetParameters()
     {
         imageConfig = new ImageWorkflowConfig();
@@ -356,6 +448,7 @@
 
     public void Dispose()
     {
-        // Cleanup if needed
+        // Unsubscribe from output state changes
+        OutputState.Changed -= StateHasChanged;
     }
 }
