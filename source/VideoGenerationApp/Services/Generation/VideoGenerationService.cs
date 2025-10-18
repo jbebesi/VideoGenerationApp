@@ -4,9 +4,9 @@ using ComfyUI.Client.Services;
 namespace VideoGenerationApp.Services.Generation
 {
     /// <summary>
-    /// Service for handling video generation tasks using new ComfyUIWorkflow builder
+    /// Service for handling video generation tasks using VideoWorkflowConfig
     /// </summary>
-    public class VideoGenerationService : GenerationServiceBase<ComfyUIWorkflow>
+    public class VideoGenerationService : GenerationServiceBase<VideoWorkflowConfig>
     {
         private readonly IComfyUIVideoService _videoService;
         private readonly IComfyUIApiClient _comfyUIClient;
@@ -28,41 +28,31 @@ namespace VideoGenerationApp.Services.Generation
         protected override string OutputSubfolder => "video";
         protected override string FilePrefix => "video";
 
-        public override GenerationTask CreateTask(string name, ComfyUIWorkflow config, string? notes = null)
+        public override GenerationTask CreateTask(string name, VideoWorkflowConfig config, string? notes = null)
         {
             return new GenerationTask
             {
                 Name = name,
-                PositivePrompt = "", // will be filled later
+                PositivePrompt = config.TextPrompt,
                 Type = GenerationType.Video,
                 Notes = notes,
                 Status = GenerationStatus.Pending
             };
         }
 
-        public override async Task<string?> SubmitTaskAsync(GenerationTask task, ComfyUIWorkflow config)
+        public override async Task<string?> SubmitTaskAsync(GenerationTask task, VideoWorkflowConfig config)
         {
             try
             {
                 _logger.LogInformation("Submitting VIDEO generation task {TaskId}", task.Id);
 
-                // Build prompt JSON from provided workflow config
-                var promptDict = config.ToPromptDictionary();
-                var promptId = await _videoService.SubmitWorkflowAsync(promptDict);
-
-                if (!string.IsNullOrEmpty(promptId))
-                {
-                    task.PromptId = promptId;
-                    task.SubmittedAt = DateTime.UtcNow;
-                    task.Status = GenerationStatus.Queued;
-                    _logger.LogInformation("Task {TaskId} submitted with prompt ID {PromptId}", task.Id, promptId);
-                }
-                else
-                {
-                    task.Status = GenerationStatus.Failed;
-                }
-
-                return promptId;
+                // For now, return placeholder until full workflow implementation is complete
+                // TODO: Implement proper video workflow generation using VideoWorkflowConfig
+                
+                task.Status = GenerationStatus.Failed;
+                task.ErrorMessage = "Video workflow implementation in progress";
+                
+                return null;
             }
             catch (Exception ex)
             {

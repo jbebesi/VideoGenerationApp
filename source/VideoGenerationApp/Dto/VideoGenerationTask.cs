@@ -65,7 +65,7 @@ namespace VideoGenerationApp.Dto
                     }
                 }
 
-                // Upload audio file to ComfyUI if provided (not currently wired into workflow nodes)
+                // Upload audio file to ComfyUI if provided
                 if (!string.IsNullOrEmpty(_originalWrapper.AudioFilePath))
                 {
                     UploadedAudioFilename = await UploadAudioToComfyUIAsync(_originalWrapper.AudioFilePath);
@@ -75,37 +75,19 @@ namespace VideoGenerationApp.Dto
                     }
                 }
 
-
                 var audioRef = !string.IsNullOrEmpty(UploadedAudioFilename) ? UploadedAudioFilename : _originalWrapper.AudioFilePath;
                 var imageRef = !string.IsNullOrEmpty(UploadedImageFilename) ? UploadedImageFilename : _originalWrapper.ImageFilePath;
+                
                 if (string.IsNullOrWhiteSpace(imageRef))
                 {
                     throw new InvalidOperationException("An input image is required for video generation.");
                 }
 
-                /// TODO FIRST
-
-                var wf = ComfyUIWorkflow.CreateVideoGenerationWorkflow(
-                    positivePrompt: _originalWrapper.TextPrompt,
-                    negativePrompt: _originalWrapper.NegativePrompt,
-                    imagePath: imageRef,
-                    audioPath: audioRef,
-                    seed: _originalWrapper.Seed <= -1 ? 12345 : _originalWrapper.Seed,
-                    steps: _originalWrapper.Steps,
-                    cfg: _originalWrapper.CFGScale,
-                    fps: _originalWrapper.Fps,
-                    //modelName: string.IsNullOrWhiteSpace(_originalWrapper.CheckpointName) ? "wan2.1_t2v_1.3B_fp16.safetensors" : _originalWrapper.CheckpointName,
-                    filenamePrefix: string.IsNullOrWhiteSpace(_originalWrapper.OutputFilename) ? "output" : _originalWrapper.OutputFilename,
-                    samplerName: _originalWrapper.SamplerName,
-                    scheduler: _originalWrapper.Scheduler,
-                    denoise: _originalWrapper.Denoise,
-                    codec: "h264",
-                    format: string.IsNullOrWhiteSpace(_originalWrapper.OutputFormat) ? "mp4" : _originalWrapper.OutputFormat
-                );
-
-                var promptDict = wf.ToPromptDictionary();
-
-                var promptId = await _videoService.SubmitWorkflowAsync(promptDict);
+                // Create the video workflow using the configurable factory
+                var workflowDict = CreateVideoWorkflow(imageRef, audioRef);
+                
+                // Submit workflow to ComfyUI
+                var promptId = await _videoService.SubmitWorkflowAsync(workflowDict);
 
                 if (!string.IsNullOrEmpty(promptId))
                 {
@@ -119,6 +101,64 @@ namespace VideoGenerationApp.Dto
             {
                 throw;
             }
+        }
+
+        /// <summary>
+        /// Create the video generation workflow based on current model set and parameters
+        /// </summary>
+        private Dictionary<string, object> CreateVideoWorkflow(string imageRef, string audioRef)
+        {
+            var config = _originalWrapper.ToWorkflowConfig();
+            var modelSet = config.GetCurrentModelSet();
+            
+            // Generate actual seed if random was requested
+            var actualSeed = config.Seed == -1 ? Random.Shared.Next(0, int.MaxValue) : config.Seed;
+            
+            // Validate that seed is not negative (except for -1 which means random)
+            if (config.Seed < -1)
+            {
+                throw new ArgumentException($"Seed value {config.Seed} is invalid. Seed must be >= 0 or -1 for random generation.");
+            }
+            
+            // Ensure actualSeed is always non-negative for ComfyUI compatibility
+            if (actualSeed < 0)
+            {
+                actualSeed = Random.Shared.Next(0, int.MaxValue);
+            }
+
+            // Create workflow using the configurable factory method
+            var workflow = ComfyUIWorkflow.CreateVideoGenerationWorkflow(
+                positivePrompt: config.TextPrompt,
+                negativePrompt: config.NegativePrompt,
+                imagePath: imageRef,
+                audioPath: audioRef,
+                unetModel: modelSet.UNetModel,
+                clipModel: modelSet.CLIPModel,
+                clipType: modelSet.CLIPType,
+                vaeModel: modelSet.VAEModel,
+                audioEncoderModel: modelSet.AudioEncoderModel,
+                loraModel: modelSet.LoRAModel,
+                loraStrength: config.LoRAStrength,
+                modelSamplingShift: config.ModelSamplingShift,
+                width: config.Width,
+                height: config.Height,
+                chunkLength: config.ChunkLength,
+                batchSize: 1, // Always 1 for now
+                seed: (int)actualSeed,
+                wasRandomSeed: config.Seed == -1, // Pass the flag indicating if original seed was random
+                steps: config.Steps,
+                cfg: config.CFGScale,
+                fps: (int)config.OutputFPS,
+                filenamePrefix: config.OutputFilename,
+                samplerName: config.SamplerName,
+                scheduler: config.Scheduler,
+                denoise: config.Denoise,
+                codec: config.VideoCodec,
+                format: config.OutputFormat
+            );
+
+            // Convert to dictionary format for ComfyUI
+            return workflow.ToPromptDictionary();
         }
         
         public override async Task<string?> CheckCompletionAsync()
