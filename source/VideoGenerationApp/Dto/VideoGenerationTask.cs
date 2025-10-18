@@ -112,7 +112,7 @@ namespace VideoGenerationApp.Dto
             var modelSet = config.GetCurrentModelSet();
             
             // Generate actual seed if random was requested
-            var actualSeed = config.Seed == -1 ? Random.Shared.Next(0, int.MaxValue) : config.Seed;
+            var actualSeed = config.Seed == -1 ? Random.Shared.Next(0, int.MaxValue - 1) : config.Seed;
             
             // Validate that seed is not negative (except for -1 which means random)
             if (config.Seed < -1)

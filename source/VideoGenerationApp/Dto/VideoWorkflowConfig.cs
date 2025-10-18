@@ -89,7 +89,7 @@ namespace VideoGenerationApp.Dto
             int chunkLength = 77,
             int batchSize = 1,
             int seed = 12345,
-            bool wasRandomSeed = false, // NEW: Track if original seed was -1
+            bool wasRandomSeed = false, // Track if original seed was -1
             int steps = 4,
             float cfg = 1.0f,
             int fps = 16,
