@@ -333,7 +333,8 @@ namespace VideoGenerationApp.Dto
                     config.CFGScale,
                     config.SamplerName,
                     config.Scheduler,
-                    config.Denoise
+                    config.Denoise,
+                    "false"
                 }
             };
         }
@@ -369,10 +370,35 @@ namespace VideoGenerationApp.Dto
 
         private static ComfyUINode CreateSaveAudioNode(AudioWorkflowConfig config)
         {
+            // Determine the node type and settings based on output format
+            string nodeType;
+            object[] widgetValues;
+            
+            switch (config.OutputFormat.ToLowerInvariant())
+            {
+                case "mp3":
+                    nodeType = "SaveAudioMP3";
+                    widgetValues = new object[] { config.OutputFilename, config.AudioQuality };
+                    break;
+                case "flac":
+                    nodeType = "SaveAudio"; // FLAC support through SaveAudio node
+                    widgetValues = new object[] { config.OutputFilename };
+                    break;
+                case "wav":
+                    nodeType = "SaveAudio"; // WAV support through SaveAudio node  
+                    widgetValues = new object[] { config.OutputFilename };
+                    break;
+                default:
+                    // Default to MP3 for unknown formats
+                    nodeType = "SaveAudioMP3";
+                    widgetValues = new object[] { config.OutputFilename, config.AudioQuality };
+                    break;
+            }
+
             return new ComfyUINode
             {
                 id = 59,
-                type = "SaveAudioMP3",
+                type = nodeType,
                 pos = new[] { 1260, -160 },
                 size = new[] { 610, 136 },
                 order = 13,
@@ -380,18 +406,22 @@ namespace VideoGenerationApp.Dto
                 inputs = new List<ComfyUIInput>
                 {
                     new() { name = "audio", type = "AUDIO", link = 126 },
-                    new() { name = "filename_prefix", type = "STRING", widget = new ComfyUIWidget { name = "filename_prefix" } },
-                    new() { name = "quality", type = "COMBO", widget = new ComfyUIWidget { name = "quality" } },
-                    new() { name = "audioUI", type = "AUDIO_UI", widget = new ComfyUIWidget { name = "audioUI" } }
-                },
+                    new() { name = "filename_prefix", type = "STRING", widget = new ComfyUIWidget { name = "filename_prefix" } }
+                }.Union(nodeType == "SaveAudioMP3" 
+                    ? new[] { new ComfyUIInput { name = "quality", type = "COMBO", widget = new ComfyUIWidget { name = "quality" } } }
+                    : Array.Empty<ComfyUIInput>()
+                ).Union(nodeType == "SaveAudioMP3"
+                    ? new[] { new ComfyUIInput { name = "audioUI", type = "AUDIO_UI", widget = new ComfyUIWidget { name = "audioUI" } } }
+                    : Array.Empty<ComfyUIInput>()
+                ).ToList(),
                 outputs = new List<ComfyUIOutput>(),
                 properties = new Dictionary<string, object> 
                 { 
-                    { "Node name for S&R", "SaveAudioMP3" },
+                    { "Node name for S&R", nodeType },
                     { "cnr_id", "comfy-core" },
                     { "ver", "0.3.34" }
                 },
-                widgets_values = new object[] { config.OutputFilename, config.AudioQuality }
+                widgets_values = widgetValues
             };
         }
     }
