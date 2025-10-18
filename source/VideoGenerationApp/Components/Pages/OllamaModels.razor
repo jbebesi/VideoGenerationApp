@@ -3,6 +3,7 @@
 @rendermode InteractiveServer
 @using VideoGenerationApp.Services
 @using VideoGenerationApp.Dto
+@using System.Text.Json
 @inject IOllamaService OllamaService
 @inject OllamaOutputState OutputState
 @inject ILogger<OllamaModels> Logger
@@ -85,17 +86,17 @@
                 </div>
             </div>
 
-            <!-- Input Content Section -->
+            <!-- Content Generation Section -->
             <div class="parameter-section">
                 <h5><i class="bi bi-chat-text me-2"></i>Content Generation</h5>
                 <div class="form-group">
                     <label for="promptInput">
                         Topic/Prompt
-                        <i class="bi bi-question-circle tooltip-icon" title="Enter the topic or prompt for video content generation. Be specific and clear for best results."></i>
+                        <i class="bi bi-question-circle tooltip-icon" title="Enter the topic or prompt for content generation. This will generate structured content for audio, image, and video generation."></i>
                     </label>
-                    <textarea id="promptInput" class="form-control" rows="3" value="@prompt" @oninput="OnPromptChanged" placeholder="Enter your video topic or prompt (e.g., 'Explain quantum computing for beginners')"></textarea>
+                    <textarea id="promptInput" class="form-control" rows="3" value="@prompt" @oninput="OnPromptChanged" placeholder="Enter your topic or prompt (e.g., 'Futuristic cyberpunk cityscape at night')"></textarea>
                     <div class="param-description">
-                        Describe what kind of video content you want to generate. Clear, specific prompts yield better results.
+                        Describe what kind of content you want to generate. The response will include structured content for audio, image, and video generation.
                     </div>
                 </div>
             </div>
@@ -196,8 +197,8 @@
 
             <!-- Action Buttons -->
             <div class="d-flex gap-2 mb-4">
-                <button class="btn btn-success" @onclick="SendPrompt" disabled="@(string.IsNullOrWhiteSpace(prompt) || string.IsNullOrEmpty(selectedModel))">
-                    <i class="bi bi-play-fill me-2"></i>Generate prompt template
+                <button class="btn btn-success" @onclick="GenerateContent" disabled="@(string.IsNullOrWhiteSpace(prompt) || string.IsNullOrEmpty(selectedModel))">
+                    <i class="bi bi-play-fill me-2"></i>Generate Content
                 </button>
                 <button class="btn btn-outline-secondary" @onclick="ResetParameters">
                     <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
@@ -209,45 +210,136 @@
         <div class="col-lg-4">
             <div class="parameter-section">
                 <h5><i class="bi bi-file-text me-2"></i>Generated Output</h5>
-                <div class="form-group">
-                    <label>Raw Response:</label>
-                    <textarea class="form-control" rows="8" readonly>@output</textarea>
-                </div>
                 
-                @if (OutputState.ParsedOutput != null)
-                {
-                    <div class="mt-3">
-                        <label>Structured Content:</label>
-                        <div class="card">
-                            <div class="card-body">
-                                <h6 class="card-title">@OutputState.ParsedOutput.narrative</h6>
-                                <p class="card-text">
-                                    <strong>Tone:</strong> @OutputState.ParsedOutput.tone<br />
-                                    <strong>Emotion:</strong> @OutputState.ParsedOutput.emotion<br />
-                                    <strong>Voice Style:</strong> @OutputState.ParsedOutput.voice_style
-                                </p>
-                                <p class="card-text">
-                                    <strong>Visual:</strong> @OutputState.ParsedOutput.visual_description
-                                </p>
-                                @if (OutputState.ParsedOutput.video_actions?.Any() == true)
-                                {
-                                    <p class="card-text">
-                                        <strong>Actions:</strong>
-                                        <ul class="mb-0">
-                                            @foreach (var action in OutputState.ParsedOutput.video_actions)
-                                            {
-                                                <li>@action</li>
-                                            }
-                                        </ul>
-                                    </p>
-                                }
-                            </div>
-                        </div>
-                    </div>
-                }
+                <div class="form-group">
+                    <label>JSON Response:</label>
+                    <textarea class="form-control" rows="8" readonly>@output</textarea>
+                    <small class="form-text text-muted">Raw JSON response from the AI model</small>
+                </div>
             </div>
         </div>
     </div>
+
+    <!-- Human-Readable Content Sections -->
+    @if (OutputState.MultiFieldOutput != null)
+    {
+        <div class="row mt-4">
+            <div class="col-12">
+                <h4><i class="bi bi-collection me-2"></i>Generated Content for Pages</h4>
+                <p class="text-muted">This content will be available on the respective generation pages</p>
+            </div>
+        </div>
+
+        <div class="row">
+            <!-- Audio Generation Content -->
+            @if (OutputState.HasFieldContent(ContentFieldType.Tags) || OutputState.HasFieldContent(ContentFieldType.Lyrics))
+            {
+                <div class="col-lg-4">
+                    <div class="parameter-section">
+                        <h5><i class="bi bi-music-note me-2"></i>Audio Page Content</h5>
+                        
+                        @if (OutputState.HasFieldContent(ContentFieldType.Tags))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header bg-info text-white">
+                                    <strong>Tags Field</strong>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">@OutputState.GetFieldContent(ContentFieldType.Tags)</p>
+                                    <small class="text-muted">Will populate the Tags field on the Audio generation page</small>
+                                </div>
+                            </div>
+                        }
+
+                        @if (OutputState.HasFieldContent(ContentFieldType.Lyrics))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header bg-secondary text-white">
+                                    <strong>Lyrics Field</strong>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text" style="white-space: pre-line;">@OutputState.GetFieldContent(ContentFieldType.Lyrics)</p>
+                                    <small class="text-muted">Will populate the Lyrics field on the Audio generation page</small>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Image Generation Content -->
+            @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt) || OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+            {
+                <div class="col-lg-4">
+                    <div class="parameter-section">
+                        <h5><i class="bi bi-image me-2"></i>Image Page Content</h5>
+                        
+                        @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header bg-success text-white">
+                                    <strong>Positive Prompt Field</strong>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">@OutputState.GetFieldContent(ContentFieldType.PositivePrompt)</p>
+                                    <small class="text-muted">Will populate the Positive Prompt field on the Image generation page</small>
+                                </div>
+                            </div>
+                        }
+
+                        @if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header bg-warning text-dark">
+                                    <strong>Negative Prompt Field</strong>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">@OutputState.GetFieldContent(ContentFieldType.NegativePrompt)</p>
+                                    <small class="text-muted">Will populate the Negative Prompt field on the Image generation page</small>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+            <!-- Video Generation Content -->
+            @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt) || OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+            {
+                <div class="col-lg-4">
+                    <div class="parameter-section">
+                        <h5><i class="bi bi-play-circle me-2"></i>Video Page Content</h5>
+                        
+                        @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header bg-primary text-white">
+                                    <strong>Text Prompt Field</strong>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">@OutputState.GetFieldContent(ContentFieldType.PositivePrompt)</p>
+                                    <small class="text-muted">Will populate the Text Prompt field on the Video generation page</small>
+                                </div>
+                            </div>
+                        }
+
+                        @if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+                        {
+                            <div class="card mb-3">
+                                <div class="card-header bg-danger text-white">
+                                    <strong>Negative Prompt Field</strong>
+                                </div>
+                                <div class="card-body">
+                                    <p class="card-text">@OutputState.GetFieldContent(ContentFieldType.NegativePrompt)</p>
+                                    <small class="text-muted">Will populate the Negative Prompt field on the Video generation page</small>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+        </div>
+    }
 </div>
 
 @code {
@@ -259,6 +351,8 @@
     string? errorDetails;
     string prompt = string.Empty;
     string output = string.Empty;
+
+    // No complex field configurations needed anymore
 
     // Ollama Request Parameters
     int maxTokens = 8000;
@@ -301,6 +395,177 @@
         keepAlive = "3m";
         stream = false;
         Logger.LogInformation("Parameters reset to defaults");
+    }
+
+    async Task GenerateContent()
+    {
+        output = string.Empty;
+        errorMessage = null;
+        errorDetails = null;
+
+        if (string.IsNullOrEmpty(selectedModel))
+        {
+            errorMessage = "No model selected.";
+            return;
+        }
+        if (string.IsNullOrWhiteSpace(prompt))
+        {
+            errorMessage = "Prompt is empty.";
+            return;
+        }
+
+        Logger.LogInformation("Generating structured content using model: {Model}. Prompt length: {Len}", 
+            selectedModel, prompt.Length);
+
+        try
+        {
+            // Create request with structured prompt for multi-field content
+            var structuredPrompt = CreateStructuredPrompt(prompt);
+            var request = new OllamaPromptRequest
+            {
+                model = selectedModel!,
+                prompt = structuredPrompt,
+                stream = stream,
+                format = "json",
+                keep_alive = keepAlive,
+                max_tokens = maxTokens,
+                temperature = temperature,
+                top_p = topP,
+                num_predictions = numPredictions
+            };
+
+            output = await OllamaService.SendPromptAsync(request);
+            
+            // Parse the response into multi-field output
+            var multiFieldOutput = ParseMultiFieldResponse(output);
+            if (multiFieldOutput != null)
+            {
+                OutputState.SetMultiField(selectedModel, multiFieldOutput);
+                Logger.LogInformation("Multi-field content generated successfully");
+            }
+            else
+            {
+                // Fallback to legacy parsing
+                var parsedOutput = OllamaService.TryParseVideoSceneOutput(output);
+                OutputState.Set(selectedModel, prompt, output, parsedOutput);
+                Logger.LogInformation("Received response. Length: {Len}, Parsed as legacy: {Parsed}", 
+                    output?.Length ?? 0, parsedOutput != null);
+            }
+        }
+        catch (Exception ex)
+        {
+            Logger.LogError(ex, "Error generating content from Ollama.");
+            (errorMessage, errorDetails) = BuildErrorDetails(ex, "Generate content");
+        }
+    }
+
+    private string CreateStructuredPrompt(string basePrompt)
+    {
+        var promptBuilder = new System.Text.StringBuilder();
+        
+        promptBuilder.AppendLine($"Based on this context: \"{basePrompt}\"");
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine("Generate structured content for multimedia generation with the following fields:");
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine("For AUDIO generation:");
+        promptBuilder.AppendLine("- tags: Keywords, genres, styles, and categories for audio (comma-separated)");
+        promptBuilder.AppendLine("- lyrics: Song lyrics with verse/chorus structure if appropriate");
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine("For IMAGE generation:");
+        promptBuilder.AppendLine("- positive_prompt: Detailed visual description of desired elements, style, quality");
+        promptBuilder.AppendLine("- negative_prompt: Unwanted elements to avoid (blurry, distorted, etc.)");
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine("For VIDEO generation:");
+        promptBuilder.AppendLine("- positive_prompt: Same as image positive prompt (for video frames)");
+        promptBuilder.AppendLine("- negative_prompt: Same as image negative prompt (for video frames)");
+        promptBuilder.AppendLine();
+        promptBuilder.AppendLine("Respond in valid JSON format with these exact field names:");
+        promptBuilder.AppendLine("{");
+        promptBuilder.AppendLine("  \"tags\": \"...\",");
+        promptBuilder.AppendLine("  \"lyrics\": \"...\",");
+        promptBuilder.AppendLine("  \"positive_prompt\": \"...\",");
+        promptBuilder.AppendLine("  \"negative_prompt\": \"...\"");
+        promptBuilder.AppendLine("}");
+        
+        return promptBuilder.ToString();
+    }
+
+    private MultiFieldOutput? ParseMultiFieldResponse(string jsonResponse)
+    {
+        if (string.IsNullOrWhiteSpace(jsonResponse))
+        {
+            Logger.LogWarning("ParseMultiFieldResponse: Empty or null JSON response");
+            return null;
+        }
+
+        try
+        {
+            Logger.LogInformation("ParseMultiFieldResponse: Attempting to parse JSON response (length: {Length})", jsonResponse.Length);
+            
+            using var doc = JsonDocument.Parse(jsonResponse);
+            var root = doc.RootElement;
+
+            var multiFieldOutput = new MultiFieldOutput();
+            int fieldsFound = 0;
+
+            // Parse each field if it exists
+            if (root.TryGetProperty("tags", out var tagsElement) && !string.IsNullOrWhiteSpace(tagsElement.GetString()))
+            {
+                var tagsValue = tagsElement.GetString()!;
+                multiFieldOutput.SetContent(ContentFieldType.Tags, tagsValue);
+                Logger.LogInformation("ParseMultiFieldResponse: Found tags field (length: {Length})", tagsValue.Length);
+                fieldsFound++;
+            }
+            else
+            {
+                Logger.LogWarning("ParseMultiFieldResponse: 'tags' field not found or empty");
+            }
+
+            if (root.TryGetProperty("lyrics", out var lyricsElement) && !string.IsNullOrWhiteSpace(lyricsElement.GetString()))
+            {
+                var lyricsValue = lyricsElement.GetString()!;
+                multiFieldOutput.SetContent(ContentFieldType.Lyrics, lyricsValue);
+                Logger.LogInformation("ParseMultiFieldResponse: Found lyrics field (length: {Length})", lyricsValue.Length);
+                fieldsFound++;
+            }
+            else
+            {
+                Logger.LogWarning("ParseMultiFieldResponse: 'lyrics' field not found or empty");
+            }
+
+            if (root.TryGetProperty("positive_prompt", out var positiveElement) && !string.IsNullOrWhiteSpace(positiveElement.GetString()))
+            {
+                var positiveValue = positiveElement.GetString()!;
+                multiFieldOutput.SetContent(ContentFieldType.PositivePrompt, positiveValue);
+                Logger.LogInformation("ParseMultiFieldResponse: Found positive_prompt field (length: {Length})", positiveValue.Length);
+                fieldsFound++;
+            }
+            else
+            {
+                Logger.LogWarning("ParseMultiFieldResponse: 'positive_prompt' field not found or empty");
+            }
+
+            if (root.TryGetProperty("negative_prompt", out var negativeElement) && !string.IsNullOrWhiteSpace(negativeElement.GetString()))
+            {
+                var negativeValue = negativeElement.GetString()!;
+                multiFieldOutput.SetContent(ContentFieldType.NegativePrompt, negativeValue);
+                Logger.LogInformation("ParseMultiFieldResponse: Found negative_prompt field (length: {Length})", negativeValue.Length);
+                fieldsFound++;
+            }
+            else
+            {
+                Logger.LogWarning("ParseMultiFieldResponse: 'negative_prompt' field not found or empty");
+            }
+
+            Logger.LogInformation("ParseMultiFieldResponse: Successfully parsed {FieldsFound} fields", fieldsFound);
+            return multiFieldOutput.Fields.Any() ? multiFieldOutput : null;
+        }
+        catch (JsonException ex)
+        {
+            Logger.LogWarning(ex, "Failed to parse multi-field JSON response: {Message}", ex.Message);
+            Logger.LogWarning("Raw JSON response: {JsonResponse}", jsonResponse);
+            return null;
+        }
     }
 
     async Task LoadModels()
