@@ -106,7 +106,7 @@ namespace VideoGenerationApp.IntegrationTests
             Assert.Equal("llama3.2:3b", models[0].name);
             Assert.Equal(2000000000, models[0].size);
             Assert.NotNull(models[0].details);
-            Assert.Equal("llama", models[0].details.family);
+            Assert.Equal("llama", models[0].details!.family);
         }
 
         [Fact]
@@ -173,7 +173,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Verify all parameters are sent correctly
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             Assert.Equal("llama3.2:3b", requestData.GetProperty("model").GetString());
             Assert.Equal("Test prompt for all parameters", requestData.GetProperty("prompt").GetString());
@@ -207,7 +207,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             // Verify default values are applied
             Assert.Equal("qwen2.5:3b", requestData.GetProperty("model").GetString());
@@ -246,7 +246,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             Assert.Equal(temperature, requestData.GetProperty("temperature").GetSingle(), 0.01f);
             Assert.Equal(topP, requestData.GetProperty("top_p").GetSingle(), 0.01f);
@@ -275,7 +275,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             Assert.Equal(maxTokens, requestData.GetProperty("max_tokens").GetInt32());
         }
@@ -304,7 +304,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             Assert.Equal(keepAlive, requestData.GetProperty("keep_alive").GetString());
         }
@@ -330,7 +330,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             Assert.Equal(stream, requestData.GetProperty("stream").GetBoolean());
         }
@@ -356,7 +356,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             var sentPrompt = requestData.GetProperty("prompt").GetString();
             Assert.NotNull(sentPrompt);
@@ -368,13 +368,13 @@ namespace VideoGenerationApp.IntegrationTests
         public async Task SendPromptAsync_WithSpecialCharacters_HandlesEncodingCorrectly()
         {
             // Arrange
-            var promptResponse = @"{""response"": ""Response with special chars: йс????""}";
+            var promptResponse = @"{""response"": ""Response with special chars: пїЅпїЅ????""}";
             _mockHandler.EnqueueJsonResponse(promptResponse);
 
             var request = new OllamaPromptRequest
             {
                 model = "llama3.2:3b",
-                prompt = "Test with special characters: йсьЯ???????????"
+                prompt = "Test with special characters: пїЅпїЅпїЅпїЅ???????????"
             };
 
             // Act
@@ -382,10 +382,10 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             var sentPrompt = requestData.GetProperty("prompt").GetString();
-            Assert.Contains("йсьЯ???????????", sentPrompt);
+            Assert.Contains("пїЅпїЅпїЅпїЅ???????????", sentPrompt);
         }
 
         [Fact]
@@ -544,7 +544,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             Assert.Equal(format, requestData.GetProperty("format").GetString());
         }
@@ -581,7 +581,7 @@ namespace VideoGenerationApp.IntegrationTests
 
             // Assert - Verify what is NOT sent to Ollama
             var requestBody = await _mockHandler.GetRequestBodyAsync();
-            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody);
+            var requestData = JsonSerializer.Deserialize<JsonElement>(requestBody!);
             
             // These parameters should NOT appear in the HTTP request to Ollama:
             

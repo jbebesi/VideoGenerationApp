@@ -103,7 +103,8 @@ public class ComfyUIApiClient : IComfyUIApiClient
     {
         var response = await SendRequestAsync("/prompt", HttpMethod.Post, content: content);
         var resstr = await response.Content.ReadAsStringAsync();
-        return JsonSerializer.Deserialize<PromptResponse>(resstr);
+        return JsonSerializer.Deserialize<PromptResponse>(resstr) 
+            ?? throw new InvalidOperationException("Failed to deserialize PromptResponse");
     }
 
     private async Task<HttpResponseMessage> SendRequestAsync(string endpoint, HttpMethod method, string content)

@@ -35,7 +35,6 @@ namespace VideoGenerationApp.Services.Generation
         {
             _logger.LogInformation("Starting video generation: {Name}", name);
 
-            // Create video generation task
             var task = new VideoGenerationTask(wrapper, _videoService, _comfyUIClient, _webHostEnvironment)
             {
                 Name = name,
@@ -49,54 +48,6 @@ namespace VideoGenerationApp.Services.Generation
 
             _logger.LogInformation("Video generation queued with task ID: {TaskId}", taskId);
             return taskId;
-        }
-
-        /// <summary>
-        /// Get available video models
-        /// </summary>
-        public async Task<List<string>> GetAvailableModelsAsync()
-        {
-            try
-            {
-                return await _videoService.GetVideoModelsAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting video models");
-                return new List<string>();
-            }
-        }
-
-        /// <summary>
-        /// Get available UNET models
-        /// </summary>
-        public async Task<List<string>> GetUNETModelsAsync()
-        {
-            try
-            {
-                return await _videoService.GetUNETModelsAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting UNET models");
-                return new List<string>();
-            }
-        }
-
-        /// <summary>
-        /// Get available LoRA models
-        /// </summary>
-        public async Task<List<string>> GetLoRAModelsAsync()
-        {
-            try
-            {
-                return await _videoService.GetLoRAModelsAsync();
-            }
-            catch (Exception ex)
-            {
-                _logger.LogError(ex, "Error getting LoRA models");
-                return new List<string>();
-            }
         }
     }
 }

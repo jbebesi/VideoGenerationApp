@@ -75,12 +75,24 @@ namespace VideoGenerationApp.Dto
             string positivePrompt,
             string negativePrompt,
             string imagePath,
-            string audioPath,
+            string? audioPath = null,
+            string unetModel = "wan2.2_s2v_14B_fp8_scaled.safetensors",
+            string clipModel = "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+            string clipType = "wan",
+            string vaeModel = "wan_2.1_vae.safetensors",
+            string audioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
+            string? loraModel = "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors",
+            float loraStrength = 1.0f,
+            float modelSamplingShift = 8.0f,
+            int width = 640,
+            int height = 640,
+            int chunkLength = 77,
+            int batchSize = 1,
             int seed = 12345,
+            bool wasRandomSeed = false, // Track if original seed was -1
             int steps = 4,
             float cfg = 1.0f,
-            int fps = 8,
-            float videoDuration = 2.0f,
+            int fps = 16,
             string filenamePrefix = "output",
             string samplerName = "euler",
             string scheduler = "normal",
@@ -90,25 +102,31 @@ namespace VideoGenerationApp.Dto
             ) 
         {
             var workflow = new ComfyUIWorkflow();
+            
             // ID 1: Load UNET model
-            workflow.AddNode(new UNETLoaderNode("1", "wan2.2_s2v_14B_fp8_scaled.safetensors"));
+            workflow.AddNode(new UNETLoaderNode("1", unetModel));
 
             // ID 2: Load CLIP model
-            workflow.AddNode(new CLIPLoaderNode("2", "wan2.2_s2v_14B_fp8_scaled.safetensors", "umt5_xxl_fp8_e4m3fn_scaled.safetensors", "wan"));
+            workflow.AddNode(new CLIPLoaderNode("2", unetModel, clipModel, clipType));
+            
             // ID 3: Load VAE model
-            workflow.AddNode(new VAELoaderNode("3", "wan_2.1_vae.safetensors"));
+            workflow.AddNode(new VAELoaderNode("3", vaeModel));
 
-            // ID 4: Load Audio Encoder
-            workflow.AddNode(new AudioEncoderLoaderNode("4", "wav2vec2_large_english_fp16.safetensors"));
+            // Audio nodes (if audio is provided)
+            if (!string.IsNullOrEmpty(audioPath))
+            {
+                // ID 4: Load Audio Encoder
+                workflow.AddNode(new AudioEncoderLoaderNode("4", audioEncoderModel));
 
-            // ID 5: Load Audio file
-            workflow.AddNode(new LoadAudioNode("5", audioPath));
+                // ID 5: Load Audio file
+                workflow.AddNode(new LoadAudioNode("5", audioPath));
+
+                // ID 7: Encode Audio
+                workflow.AddNode(new AudioEncoderEncodeNode("7", "4", "5"));
+            }
 
             // ID 6: Load Image file
             workflow.AddNode(new LoadImageNode("6", imagePath));
-
-            // ID 7: Encode Audio
-            workflow.AddNode(new AudioEncoderEncodeNode("7", "4", "5"));
 
             // ID 8: Encode positive prompt
             workflow.AddNode(new CLIPTextEncodeNode("8", positivePrompt, "2"));
@@ -116,28 +134,48 @@ namespace VideoGenerationApp.Dto
             // ID 9: Encode negative prompt
             workflow.AddNode(new CLIPTextEncodeNode("9", negativePrompt, "2"));
 
-            // ID 10: Optional LoRA loader (can be skipped for basic workflow)
-            workflow.AddNode(new LoraLoaderModelOnlyNode("10", "1", "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors", 1.0f));
+            string modelNodeId = "1";
+            
+            // ID 10: Optional LoRA loader (if LoRA model is provided)
+            if (!string.IsNullOrEmpty(loraModel))
+            {
+                workflow.AddNode(new LoraLoaderModelOnlyNode("10", "1", loraModel, loraStrength));
+                modelNodeId = "10"; // Use LoRA-enhanced model
+            }
 
             // ID 11: Model sampling configuration
-            workflow.AddNode(new ModelSamplingSD3Node("11", "10", 8.0f));
+            workflow.AddNode(new ModelSamplingSD3Node("11", modelNodeId, modelSamplingShift));
 
-            // ID 12: WanSoundImageToVideo node (combines everything!)
-            workflow.AddNode(new WanSoundImageToVideoNode("12", "8", "9", "3", "7", "6", 640, 640, 77, 1));
-            // ID 13: Main KSampler
-            workflow.AddNode(new KSamplerNode("13", "11", "12", "12", "12", seed, steps, cfg));
+            // ID 12: WanSoundImageToVideo node
+            string? audioEncoderNodeId = !string.IsNullOrEmpty(audioPath) ? "7" : null;
+            if (audioEncoderNodeId != null)
+            {
+                workflow.AddNode(new WanSoundImageToVideoNode("12", "8", "9", "3", audioEncoderNodeId, "6", width, height, chunkLength, batchSize));
+            }
+            else
+            {
+                // Create a version without audio encoder - we need a new constructor for this
+                workflow.AddNode(new WanSoundImageToVideoNoAudio("12", "8", "9", "3", "6", width, height, chunkLength, batchSize));
+            }
+
+            // ID 13: Main KSampler - use a special constructor that accepts the random seed flag
+            workflow.AddNode(new KSamplerNodeWithSeedControl("13", "11", "12", "12", "12", seed, wasRandomSeed, steps, cfg, samplerName, scheduler, denoise));
 
             // ID 14: VAE Decode
             workflow.AddNode(new VAEDecodeNode("14", "13", "3"));
 
-            // ID 15: Create Video (with audio)
-            workflow.AddNode(new CreateVideoNode("15", "14", 16, "5"));
+            // ID 15: Create Video
+            if (!string.IsNullOrEmpty(audioPath))
+            {
+                workflow.AddNode(new CreateVideoNode("15", "14", fps, "5"));
+            }
+            else
+            {
+                workflow.AddNode(new CreateVideoNode("15", "14", fps));
+            }
 
             // ID 16: Save Video
-            workflow.AddNode(new SaveVideoNode("16", "15"));
-
-            return workflow;
-
+            workflow.AddNode(new SaveVideoNode("16", "15", filenamePrefix, codec, format));
 
             return workflow;
         }
@@ -147,7 +185,7 @@ namespace VideoGenerationApp.Dto
     {
         public string Id { get; set; }
         public abstract string ClassType { get; }
-        public Dictionary<string, object> Inputs { get; set; } = new Dictionary<string, object>();
+        public Dictionary<string, object?> Inputs { get; set; } = new Dictionary<string, object?>();
 
         protected BaseNode(string id)
         {
@@ -161,7 +199,7 @@ namespace VideoGenerationApp.Dto
         }
 
         // Helper method to add simple values
-        protected void AddInput(string inputName, object value)
+        protected void AddInput(string inputName, object? value)
         {
             Inputs[inputName] = value;
         }
@@ -222,6 +260,26 @@ namespace VideoGenerationApp.Dto
             AddConnection("negative", negativeNodeId, 0);
             AddConnection("vae", vaeNodeId, 0);
             AddConnection("audio_encoder_output", audioEncoderOutputNodeId, 0);
+            AddConnection("ref_image", imageNodeId, 0);
+
+            AddInput("width", width);
+            AddInput("height", height);
+            AddInput("length", length);
+            AddInput("batch_size", batchSize);
+        }
+    }
+
+    public class WanSoundImageToVideoNoAudio : BaseNode
+    {
+        public override string ClassType => "WanSoundImageToVideo";
+
+        public WanSoundImageToVideoNoAudio(string id, string positiveNodeId, string negativeNodeId,
+                                       string vaeNodeId, string imageNodeId,
+                                       int width = 640, int height = 640, int length = 77, int batchSize = 1) : base(id)
+        {
+            AddConnection("positive", positiveNodeId, 0);
+            AddConnection("negative", negativeNodeId, 0);
+            AddConnection("vae", vaeNodeId, 0);
             AddConnection("ref_image", imageNodeId, 0);
 
             AddInput("width", width);
@@ -297,7 +355,7 @@ namespace VideoGenerationApp.Dto
     // Fix for video generation - need to generate multiple frames properly
     public class VideoLatentNode : BaseNode
     {
-        public override string ClassType => "EmptyLatentImage";  // Create empty latent for video
+        public override string ClassType => "EmptyLatentImage";
 
         public VideoLatentNode(string id, int width = 512, int height = 512, int batchSize = 16) : base(id)
         {
@@ -328,7 +386,7 @@ namespace VideoGenerationApp.Dto
 
         public AudioVideoKSamplerNode(string id, string modelNodeId, string positiveNodeId,
                                     string negativeNodeId, string latentNodeId,
-                                    string audioNodeId = null, int seed = 12345,
+                                    string? audioNodeId = null, int seed = 12345,
                                     int steps = 20, float cfg = 7.0f) : base(id)
         {
             AddConnection("model", modelNodeId, 0);
@@ -378,7 +436,7 @@ namespace VideoGenerationApp.Dto
 
         public override string ClassType => "CLIPLoader";
 
-        public CLIPLoaderNode(string id, string unetModelName, string clipName = null, string type = null) : base(id)
+        public CLIPLoaderNode(string id, string unetModelName, string? clipName = null, string? type = null) : base(id)
         {
             if (!string.IsNullOrEmpty(unetModelName) && ModelCompatibility.ContainsKey(unetModelName))
             {
@@ -485,6 +543,30 @@ namespace VideoGenerationApp.Dto
             AddConnection("negative", negativeNodeId, 1);
             AddConnection("latent_image", latentImageNodeId, 2);
             AddInput("seed", seed);
+            AddInput("control_after_generate", seed == -1 ? "randomize" : "fixed");
+            AddInput("steps", steps);
+            AddInput("cfg", cfg);
+            AddInput("sampler_name", samplerName);
+            AddInput("scheduler", scheduler);
+            AddInput("denoise", denoise);
+        }
+    }
+
+    // Enhanced KSampler with proper seed control handling
+    public class KSamplerNodeWithSeedControl : BaseNode
+    {
+        public override string ClassType => "KSampler";
+
+        public KSamplerNodeWithSeedControl(string id, string modelNodeId, string positiveNodeId, string negativeNodeId,
+                           string latentImageNodeId, int seed, bool wasRandomSeed, int steps = 4, float cfg = 1.0f,
+                           string samplerName = "euler", string scheduler = "normal", float denoise = 1.0f) : base(id)
+        {
+            AddConnection("model", modelNodeId, 0);
+            AddConnection("positive", positiveNodeId, 0);
+            AddConnection("negative", negativeNodeId, 1);
+            AddConnection("latent_image", latentImageNodeId, 2);
+            AddInput("seed", seed);
+            AddInput("control_after_generate", wasRandomSeed ? "randomize" : "fixed");
             AddInput("steps", steps);
             AddInput("cfg", cfg);
             AddInput("sampler_name", samplerName);
@@ -498,7 +580,7 @@ namespace VideoGenerationApp.Dto
     {
         public override string ClassType => "CreateVideo";
 
-        public CreateVideoNode(string id, string imagesNodeId, int fps = 16, string audioNodeId = null) : base(id)
+        public CreateVideoNode(string id, string imagesNodeId, int fps = 16, string? audioNodeId = null) : base(id)
         {
             AddConnection("images", imagesNodeId, 0);
             if (!string.IsNullOrEmpty(audioNodeId))
@@ -523,9 +605,73 @@ namespace VideoGenerationApp.Dto
         }
     }
 
-    // Legacy compatibility class to keep older code/tests compiling
     public class VideoWorkflowConfig
     {
+        #region Model Set Selection
+        
+        /// <summary>
+        /// Predefined model sets for video generation
+        /// Each set contains compatible models that work together
+        /// </summary>
+        public string ModelSet { get; set; } = "WAN_2_2_4Steps";
+        
+        /// <summary>
+        /// Available model sets with their configurations
+        /// </summary>
+        public static readonly Dictionary<string, ModelSetConfig> ModelSets = new()
+        {
+            ["WAN_2_2_4Steps"] = new()
+            {
+                DisplayName = "WAN 2.2 (4 Steps Lightning)",
+                UNetModel = "wan2.2_s2v_14B_fp8_scaled.safetensors",
+                CLIPModel = "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+                CLIPType = "wan",
+                VAEModel = "wan_2.1_vae.safetensors",
+                AudioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
+                LoRAModel = "wan2.2_t2v_lightx2v_4steps_lora_v1.1_high_noise.safetensors",
+                LoRAStrength = 1.0f,
+                DefaultSteps = 4,
+                DefaultCFG = 1.0f,
+                ModelSamplingShift = 8.0f,
+                RecommendedSampler = "uni_pc",
+                RecommendedScheduler = "simple"
+            },
+            ["WAN_2_2_20Steps"] = new()
+            {
+                DisplayName = "WAN 2.2 (20 Steps Standard)",
+                UNetModel = "wan2.2_s2v_14B_fp8_scaled.safetensors",
+                CLIPModel = "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+                CLIPType = "wan",
+                VAEModel = "wan_2.1_vae.safetensors",
+                AudioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
+                LoRAModel = null, // No LoRA for standard workflow
+                LoRAStrength = 0.0f,
+                DefaultSteps = 20,
+                DefaultCFG = 6.0f,
+                ModelSamplingShift = 8.0f,
+                RecommendedSampler = "uni_pc",
+                RecommendedScheduler = "simple"
+            },
+            ["WAN_2_2_BF16"] = new()
+            {
+                DisplayName = "WAN 2.2 BF16 (High Quality)",
+                UNetModel = "wan2.2_s2v_14B_bf16.safetensors",
+                CLIPModel = "umt5_xxl_fp8_e4m3fn_scaled.safetensors",
+                CLIPType = "wan",
+                VAEModel = "wan_2.1_vae.safetensors",
+                AudioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
+                LoRAModel = null,
+                LoRAStrength = 0.0f,
+                DefaultSteps = 20,
+                DefaultCFG = 6.0f,
+                ModelSamplingShift = 8.0f,
+                RecommendedSampler = "uni_pc",
+                RecommendedScheduler = "simple"
+            }
+        };
+
+        #endregion
+
         public string TextPrompt { get; set; } = string.Empty;
         public string NegativePrompt { get; set; } = string.Empty;
         public string CheckpointName { get; set; } = string.Empty;
@@ -545,5 +691,41 @@ namespace VideoGenerationApp.Dto
         public string OutputFilename { get; set; } = "output";
         public string OutputFormat { get; set; } = "mp4";
         public float Quality { get; set; } = 90;
+
+        // Additional properties needed for video generation
+        public int ChunkLength { get; set; } = 77;
+        public int VideoSegments { get; set; } = 2;
+        public float ModelSamplingShift { get; set; } = 8.0f;
+        public float LoRAStrength { get; set; } = 1.0f;
+        public string VideoCodec { get; set; } = "h264";
+        public float OutputFPS { get; set; } = 16.0f;
+
+        /// <summary>
+        /// Get the current model set configuration
+        /// </summary>
+        public ModelSetConfig GetCurrentModelSet()
+        {
+            return ModelSets.TryGetValue(ModelSet, out var config) ? config : ModelSets["WAN_2_2_4Steps"];
+        }
+    }
+
+    /// <summary>
+    /// Configuration for a specific model set
+    /// </summary>
+    public class ModelSetConfig
+    {
+        public string DisplayName { get; set; } = string.Empty;
+        public string UNetModel { get; set; } = string.Empty;
+        public string CLIPModel { get; set; } = string.Empty;
+        public string CLIPType { get; set; } = string.Empty;
+        public string VAEModel { get; set; } = string.Empty;
+        public string AudioEncoderModel { get; set; } = string.Empty;
+        public string? LoRAModel { get; set; }
+        public float LoRAStrength { get; set; }
+        public int DefaultSteps { get; set; }
+        public float DefaultCFG { get; set; }
+        public float ModelSamplingShift { get; set; }
+        public string RecommendedSampler { get; set; } = string.Empty;
+        public string RecommendedScheduler { get; set; } = string.Empty;
     }
 }

@@ -37,7 +37,7 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Sets the workflow template from JSON (for backward compatibility)
+        /// Sets the workflow template from JSON
         /// </summary>
         public override void SetWorkflowTemplate(string template)
         {
@@ -79,7 +79,45 @@ namespace VideoGenerationApp.Services
         /// </summary>
         public async Task<string?> GenerateVideoAsync(VideoWorkflowWrapper wrapper)
         {
-            return await Task.FromResult("NO");
+            try
+            {
+                _logger.LogInformation("Starting video generation with VideoWorkflowWrapper");
+
+                if (!await IsComfyUIRunningAsync())
+                {
+                    _logger.LogError("ComfyUI is not running. Please start ComfyUI first.");
+                    return "NO";
+                }
+
+                var task = new VideoGenerationTask(wrapper, this, _comfyUIClient, _environment);
+                
+                var promptId = await task.SubmitAsync();
+                
+                if (!string.IsNullOrEmpty(promptId))
+                {
+                    _logger.LogInformation("Video generation submitted successfully with prompt ID: {PromptId}", promptId);
+                    
+                    // Wait for completion with extended timeout for video generation
+                    var timeout = TimeSpan.FromMinutes(_settings.TimeoutMinutes);
+                    _logger.LogInformation("Waiting for video generation to complete (timeout: {Timeout})", timeout);
+                    
+                    var completed = await WaitForCompletionAsync(promptId, timeout);
+                    if (!completed)
+                    {
+                        _logger.LogError("Video generation timed out after {Timeout}", timeout);
+                        return "NO";
+                    }
+
+                    return await GetGeneratedFileAsync(promptId, "video", wrapper.OutputFilename);
+                }
+                
+                return "NO";
+            }
+            catch (Exception ex)
+            {
+                _logger.LogError(ex, "Error during video generation");
+                return "NO";
+            }
         }
 
         /// <summary>
@@ -87,7 +125,6 @@ namespace VideoGenerationApp.Services
         /// </summary>
         public Dictionary<string, object> ConvertWorkflowToComfyUIFormat(ComfyUIAudioWorkflow workflow)
         {
-            // Legacy method retained for interface compatibility: minimal passthrough
             return new Dictionary<string, object>();
         }
 
@@ -139,7 +176,7 @@ namespace VideoGenerationApp.Services
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error preparing input files");
+_logger.LogError(ex, "Error preparing input files");
                 return null;
             }
         }

@@ -6,7 +6,6 @@ using VideoGenerationApp.Logging;
 using Microsoft.Extensions.Options;
 using VideoGenerationApp.Dto;
 using ComfyUI.Client.Extensions;
-using VideoGenerationApp.Examples;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -22,10 +21,8 @@ builder.Logging.AddConsoleFormatter<CustomTimestampConsoleFormatter, Microsoft.E
 builder.Services.Configure<ComfyUISettings>(
     builder.Configuration.GetSection("ComfyUI"));
 
-// Add ComfyUI Client
 builder.Services.AddComfyUIClient(builder.Configuration);
 
-// Add services to the container.
 builder.Services.AddRazorComponents()
     .AddInteractiveServerComponents(options =>
     {
@@ -66,8 +63,6 @@ builder.Services.AddHostedService<GenerationQueueService>(provider => provider.G
 // Per-circuit state for sharing parsed output across pages
 builder.Services.AddScoped<OllamaOutputState>();
 
-builder.Services.AddScoped<GenerationWorkflowExample>();
-
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -77,7 +72,7 @@ if (!app.Environment.IsDevelopment())
 }
 
 app.UseStatusCodePagesWithReExecute("/not-found");
-app.UseStaticFiles(); // Add traditional static files support
+app.UseStaticFiles();
 app.UseAntiforgery();
 
 app.MapRazorComponents<App>()

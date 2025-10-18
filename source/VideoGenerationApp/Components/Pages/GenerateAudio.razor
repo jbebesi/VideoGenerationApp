@@ -110,6 +110,15 @@
                             <input id="audioDuration" type="number" class="form-control" step="1" min="30" max="300" 
                                 @bind="workflowConfig.AudioDurationSeconds" />
                         </div>
+                        
+                        <div class="form-group">
+                            <label for="batchSize">
+                                Batch Size
+                                <i class="bi bi-question-circle tooltip-icon" title="Number of audio variants to generate simultaneously"></i>
+                            </label>
+                            <input id="batchSize" type="number" class="form-control" step="1" min="1" max="4" 
+                                @bind="workflowConfig.BatchSize" />
+                        </div>
                     </div>
                     
                     <div class="col-md-6">
@@ -132,21 +141,43 @@
                         </div>
                         
                         <div class="form-group">
-                            <label for="modelShift">
-                                Model Shift
-                                <i class="bi bi-question-circle tooltip-icon" title="SD3 sampling shift parameter (1-10)"></i>
+                            <label for="samplerName">
+                                Sampler
+                                <i class="bi bi-question-circle tooltip-icon" title="Sampling algorithm to use for generation"></i>
                             </label>
-                            <input id="modelShift" type="number" class="form-control" step="0.1" min="1" max="10" 
-                                @bind="workflowConfig.ModelShift" />
+                            <select id="samplerName" class="form-select" @bind="workflowConfig.SamplerName">
+                                <option value="euler">Euler</option>
+                                <option value="euler_ancestral">Euler Ancestral</option>
+                                <option value="heun">Heun</option>
+                                <option value="dpm_2">DPM++ 2M</option>
+                                <option value="dpm_2_ancestral">DPM++ 2M Ancestral</option>
+                                <option value="lms">LMS</option>
+                                <option value="ddim">DDIM</option>
+                                <option value="uni_pc">UniPC</option>
+                            </select>
                         </div>
                         
                         <div class="form-group">
-                            <label for="tonemapMultiplier">
-                                Tonemap Multiplier
-                                <i class="bi bi-question-circle tooltip-icon" title="Audio dynamics control (0.1-2.0)"></i>
+                            <label for="scheduler">
+                                Scheduler
+                                <i class="bi bi-question-circle tooltip-icon" title="Noise scheduling method"></i>
                             </label>
-                            <input id="tonemapMultiplier" type="number" class="form-control" step="0.1" min="0.1" max="2" 
-                                @bind="workflowConfig.TonemapMultiplier" />
+                            <select id="scheduler" class="form-select" @bind="workflowConfig.Scheduler">
+                                <option value="simple">Simple</option>
+                                <option value="normal">Normal</option>
+                                <option value="karras">Karras</option>
+                                <option value="exponential">Exponential</option>
+                                <option value="sgm_uniform">SGM Uniform</option>
+                            </select>
+                        </div>
+                        
+                        <div class="form-group">
+                            <label for="denoise">
+                                Denoise Strength
+                                <i class="bi bi-question-circle tooltip-icon" title="Amount of denoising to apply (0.0-1.0)"></i>
+                            </label>
+                            <input id="denoise" type="number" class="form-control" step="0.01" min="0" max="1" 
+                                @bind="workflowConfig.Denoise" />
                         </div>
                         
                         <div class="form-group">
@@ -155,6 +186,73 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="Random seed for reproducible results (-1 for random)"></i>
                             </label>
                             <input id="seed" type="number" class="form-control" @bind="workflowConfig.Seed" />
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Advanced Settings -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="modelShift">
+                                Model Shift
+                                <i class="bi bi-question-circle tooltip-icon" title="SD3 sampling shift parameter (1-10)"></i>
+                            </label>
+                            <input id="modelShift" type="number" class="form-control" step="0.1" min="1" max="10" 
+                                @bind="workflowConfig.ModelShift" />
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="tonemapMultiplier">
+                                Tonemap Multiplier
+                                <i class="bi bi-question-circle tooltip-icon" title="Audio dynamics control (0.1-2.0)"></i>
+                            </label>
+                            <input id="tonemapMultiplier" type="number" class="form-control" step="0.1" min="0.1" max="2" 
+                                @bind="workflowConfig.TonemapMultiplier" />
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Output Settings -->
+                <div class="row mt-3">
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="outputFormat">
+                                Output Format
+                                <i class="bi bi-question-circle tooltip-icon" title="Audio file format for generated output"></i>
+                            </label>
+                            <select id="outputFormat" class="form-select" @bind="workflowConfig.OutputFormat">
+                                <option value="mp3">MP3</option>
+                                <option value="wav">WAV</option>
+                                <option value="flac">FLAC</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div class="col-md-6">
+                        <div class="form-group">
+                            <label for="audioQuality">
+                                Audio Quality
+                                <i class="bi bi-question-circle tooltip-icon" title="Quality setting for MP3 files (V0=highest, V9=lowest)"></i>
+                            </label>
+                            <select id="audioQuality" class="form-select" @bind="workflowConfig.AudioQuality" disabled="@(workflowConfig.OutputFormat != "mp3")">
+                                <option value="V0">V0 (Highest Quality)</option>
+                                <option value="V1">V1</option>
+                                <option value="V2">V2</option>
+                                <option value="V3">V3</option>
+                                <option value="V4">V4 (Standard)</option>
+                                <option value="V5">V5</option>
+                                <option value="V6">V6</option>
+                                <option value="V7">V7</option>
+                                <option value="V8">V8</option>
+                                <option value="V9">V9 (Lowest Quality)</option>
+                            </select>
+                            @if (workflowConfig.OutputFormat != "mp3")
+                            {
+                                <small class="form-text text-muted">Quality setting only applies to MP3 format</small>
+                            }
                         </div>
                     </div>
                 </div>

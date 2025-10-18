@@ -56,7 +56,7 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Updates the audio workflow template (for backward compatibility)
+        /// Updates the audio workflow template
         /// </summary>
         public override void SetWorkflowTemplate(string template)
         {
@@ -243,6 +243,7 @@ namespace VideoGenerationApp.Services
                         if (node.widgets_values.Length >= 7)
                         {
                             inputs["seed"] = node.widgets_values[0];
+                            inputs["control_after_generate"] = node.widgets_values[1];
                             inputs["steps"] = node.widgets_values[2];
                             inputs["cfg"] = node.widgets_values[3];
                             inputs["sampler_name"] = node.widgets_values[4];
@@ -346,15 +347,16 @@ namespace VideoGenerationApp.Services
         }
 
         /// <summary>
-        /// Extracts configuration from a workflow (for backward compatibility)
+        /// Extracts configuration from a workflow
         /// </summary>
         private void ExtractConfigFromWorkflow(ComfyUIAudioWorkflow workflow)
         {
             var kSamplerNode = workflow.nodes.FirstOrDefault(n => n.type == "KSampler");
-            if (kSamplerNode?.widgets_values?.Length >= 6)
+            if (kSamplerNode?.widgets_values?.Length >= 7)
             {
                 if (long.TryParse(kSamplerNode.widgets_values[0]?.ToString(), out long seed))
                     _workflowConfig.Seed = seed;
+                // Skip index 1 (control_after_generate) as it's not stored in config
                 if (int.TryParse(kSamplerNode.widgets_values[2]?.ToString(), out int steps))
                     _workflowConfig.Steps = steps;
                 if (float.TryParse(kSamplerNode.widgets_values[3]?.ToString(), out float cfg))
@@ -403,6 +405,27 @@ namespace VideoGenerationApp.Services
             {
                 if (float.TryParse(tonemapNode.widgets_values[0]?.ToString(), out float tonemapMultiplier))
                     _workflowConfig.TonemapMultiplier = tonemapMultiplier;
+            }
+
+            // Extract output format and quality from save audio nodes
+            var saveAudioMP3Node = workflow.nodes.FirstOrDefault(n => n.type == "SaveAudioMP3");
+            var saveAudioNode = workflow.nodes.FirstOrDefault(n => n.type == "SaveAudio");
+            
+            if (saveAudioMP3Node?.widgets_values?.Length >= 2)
+            {
+                if (saveAudioMP3Node.widgets_values[0] is string outputFilename)
+                    _workflowConfig.OutputFilename = outputFilename;
+                if (saveAudioMP3Node.widgets_values[1] is string audioQuality)
+                    _workflowConfig.AudioQuality = audioQuality;
+                _workflowConfig.OutputFormat = "mp3";
+            }
+            else if (saveAudioNode?.widgets_values?.Length >= 1)
+            {
+                if (saveAudioNode.widgets_values[0] is string outputFilename)
+                    _workflowConfig.OutputFilename = outputFilename;
+                // Default to WAV for SaveAudio node
+                _workflowConfig.OutputFormat = "wav";
+                _workflowConfig.AudioQuality = ""; // Not applicable for WAV
             }
         }
     }
