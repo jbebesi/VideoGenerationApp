@@ -9,6 +9,11 @@
     - ComfyUI (Stable Diffusion workflows)
     - Required AI models for both Ollama and ComfyUI
     
+    MODEL DOWNLOAD WARNING:
+    By default, this script downloads ~15 GB of essential AI models.
+    With -DownloadAllModels, it downloads ~25+ GB of models total.
+    You will be prompted before any large downloads begin.
+    
     The script is idempotent and can be run multiple times safely.
     It works on both Windows and Linux with PowerShell Core.
 
@@ -32,6 +37,10 @@
 .PARAMETER SkipModels
     Skip AI model downloads for ComfyUI.
 
+.PARAMETER DownloadAllModels
+    Download all available models including large ones (10+ GB total).
+    By default, only essential models are downloaded.
+
 .PARAMETER PythonVersion
     Minimum required Python version.
     Default: "3.10"
@@ -48,9 +57,29 @@
     .\install.ps1 -OllamaModels "llama3.2:1b,mistral:7b" -SkipModels
     Installs Ollama with custom models but skips ComfyUI model downloads.
 
+.EXAMPLE
+    .\install.ps1 -DownloadAllModels
+    Downloads all available models including large ones (warning: 10+ GB total).
+
+.EXAMPLE
+    .\install.ps1 -SkipOllama -DownloadAllModels
+    Skips Ollama but downloads all ComfyUI models including optional ones.
+
 .NOTES
     Author: VideoGenerationApp
     Requires: PowerShell 7.0+ for cross-platform support
+    
+    ESSENTIAL MODELS DOWNLOADED (~15 GB):
+    • Stable Diffusion v1.5 (4.3 GB) - Basic image generation
+    • SDXL Turbo (6.9 GB) - Fast high-quality images  
+    • Stable Video Diffusion (9.6 GB) - Video generation
+    • VAE models (0.6 GB) - Image encoding/decoding
+    
+    OPTIONAL MODELS (-DownloadAllModels, ~10 GB additional):
+    • SDXL Base (6.9 GB) - Highest quality images
+    • SVD XT (9.6 GB) - Extended video generation
+    • AnimateDiff (2.8 GB) - Animation generation
+    • ControlNet models (2.8 GB) - Guided generation
 #>
 
 [CmdletBinding()]
@@ -61,6 +90,7 @@ param(
     [switch]$SkipPython,
     [switch]$SkipComfyUI,
     [switch]$SkipModels,
+    [switch]$DownloadAllModels,
     [string]$PythonVersion = "3.10"
 )
 
@@ -394,35 +424,150 @@ function Install-ComfyUIDependencies {
 
 # Function to download ComfyUI models
 function Install-ComfyUIModels {
-    param([string]$ComfyUIPath)
+    param(
+        [string]$ComfyUIPath,
+        [bool]$DownloadAll = $false
+    )
     
     Write-Step "Downloading ComfyUI AI Models"
     
-    # Define models to download
-    $models = @(
+    # Essential models (smaller, required for basic functionality)
+    $essentialModels = @(
         @{
-            Name = "ace_step_v1_3.5b.safetensors"
-            Url = "https://huggingface.co/AIHUB/ACE-Studio/resolve/main/ace_step_v1_3.5b.safetensors"
+            Name = "v1-5-pruned-emaonly.safetensors"
+            Url = "https://huggingface.co/runwayml/stable-diffusion-v1-5/resolve/main/v1-5-pruned-emaonly.safetensors"
             SubDir = "checkpoints"
-            Description = "ACE Step audio generation model"
+            Description = "Stable Diffusion v1.5 (Essential for image generation)"
+            SizeGB = 4.3
+            Essential = $true
         },
+        @{
+            Name = "sd_xl_turbo_1.0_fp16.safetensors"
+            Url = "https://huggingface.co/stabilityai/sdxl-turbo/resolve/main/sd_xl_turbo_1.0_fp16.safetensors"
+            SubDir = "checkpoints"
+            Description = "SDXL Turbo (Fast image generation)"
+            SizeGB = 6.9
+            Essential = $true
+        },
+        @{
+            Name = "svd.safetensors"
+            Url = "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid/resolve/main/svd.safetensors"
+            SubDir = "checkpoints"
+            Description = "Stable Video Diffusion (Essential for video generation)"
+            SizeGB = 9.6
+            Essential = $true
+        }
+    )
+    
+    # Optional models (larger, for advanced functionality)
+    $optionalModels = @(
         @{
             Name = "sd_xl_base_1.0.safetensors"
             Url = "https://huggingface.co/stabilityai/stable-diffusion-xl-base-1.0/resolve/main/sd_xl_base_1.0.safetensors"
             SubDir = "checkpoints"
-            Description = "Stable Diffusion XL base model"
+            Description = "Stable Diffusion XL Base (High quality images)"
+            SizeGB = 6.9
+            Essential = $false
         },
         @{
             Name = "svd_xt.safetensors"
             Url = "https://huggingface.co/stabilityai/stable-video-diffusion-img2vid-xt/resolve/main/svd_xt.safetensors"
             SubDir = "checkpoints"
-            Description = "Stable Video Diffusion model"
+            Description = "Stable Video Diffusion XT (Extended video generation)"
+            SizeGB = 9.6
+            Essential = $false
+        },
+        @{
+            Name = "AnimateDiff_xl_beta.ckpt"
+            Url = "https://huggingface.co/ByteDance/AnimateDiff-Lightning/resolve/main/animatediff_lightning_4step_diffusers.safetensors"
+            SubDir = "animatediff_models"
+            Description = "AnimateDiff XL (Animation generation)"
+            SizeGB = 2.8
+            Essential = $false
+        },
+        @{
+            Name = "control_v11p_sd15_canny.pth"
+            Url = "https://huggingface.co/lllyasviel/ControlNet-v1-1/resolve/main/control_v11p_sd15_canny.pth"
+            SubDir = "controlnet"
+            Description = "ControlNet Canny (Edge-guided generation)"
+            SizeGB = 1.4
+            Essential = $false
+        },
+        @{
+            Name = "control_v11p_sd15_openpose.pth"
+            Url = "https://huggingface.co/lllyasviel/ControlNet-v1-1/resolve/main/control_v11p_sd15_openpose.pth"
+            SubDir = "controlnet"
+            Description = "ControlNet OpenPose (Pose-guided generation)"
+            SizeGB = 1.4
+            Essential = $false
         }
     )
     
-    $modelsPath = "$ComfyUIPath/models"
+    # VAE models (smaller but important)
+    $vaeModels = @(
+        @{
+            Name = "sdxl_vae.safetensors"
+            Url = "https://huggingface.co/stabilityai/sdxl-vae/resolve/main/sdxl_vae.safetensors"
+            SubDir = "vae"
+            Description = "SDXL VAE (Image encoding/decoding)"
+            SizeGB = 0.3
+            Essential = $true
+        },
+        @{
+            Name = "vae-ft-mse-840000-ema-pruned.safetensors"
+            Url = "https://huggingface.co/stabilityai/sd-vae-ft-mse-original/resolve/main/vae-ft-mse-840000-ema-pruned.safetensors"
+            SubDir = "vae"
+            Description = "SD 1.5 VAE (Standard VAE for SD 1.5)"
+            SizeGB = 0.3
+            Essential = $true
+        }
+    )
+
+    # Combine models based on selection
+    $modelsToDownload = $essentialModels + $vaeModels
+    if ($DownloadAll) {
+        $modelsToDownload += $optionalModels
+    }
     
-    foreach ($model in $models) {
+    # Calculate total download size
+    $totalSize = ($modelsToDownload | Measure-Object -Property SizeGB -Sum).Sum
+    $essentialSize = (($essentialModels + $vaeModels) | Measure-Object -Property SizeGB -Sum).Sum
+    $optionalSize = ($optionalModels | Measure-Object -Property SizeGB -Sum).Sum
+    
+    # Display warning about download sizes
+    Write-Warning "⚠️  LARGE DOWNLOAD WARNING ⚠️"
+    Write-Host ""
+    Write-Host "Essential models size: $([math]::Round($essentialSize, 1)) GB" -ForegroundColor Yellow
+    if ($DownloadAll) {
+        Write-Host "Optional models size: $([math]::Round($optionalSize, 1)) GB" -ForegroundColor Yellow
+        Write-Host "TOTAL download size: $([math]::Round($totalSize, 1)) GB" -ForegroundColor Red
+    } else {
+        Write-Host "Total download size (essential only): $([math]::Round($totalSize, 1)) GB" -ForegroundColor Yellow
+        Write-Host "Optional models (add -DownloadAllModels): $([math]::Round($optionalSize, 1)) GB" -ForegroundColor Cyan
+    }
+    Write-Host ""
+    Write-Host "This download will:" -ForegroundColor Yellow
+    Write-Host "• Take significant time (depending on your internet speed)" -ForegroundColor Yellow
+    Write-Host "• Use considerable disk space" -ForegroundColor Yellow
+    Write-Host "• May consume bandwidth quota if you have data limits" -ForegroundColor Yellow
+    Write-Host ""
+    
+    # Prompt for confirmation
+    $confirmation = Read-Host "Do you want to proceed with downloading these models? (y/N)"
+    if ($confirmation -notmatch '^[Yy]') {
+        Write-Info "Model download cancelled by user."
+        Write-Info "You can download models later by running:"
+        Write-Info "  .\install.ps1 -SkipOllama -SkipPython -SkipComfyUI $(if ($DownloadAll) { '-DownloadAllModels' })"
+        return
+    }
+    
+    Write-Info "Starting model downloads..."
+    $modelsPath = "$ComfyUIPath/models"
+    $downloadedCount = 0
+    $skippedCount = 0
+    $failedCount = 0
+    
+    foreach ($model in $modelsToDownload) {
         $targetDir = "$modelsPath/$($model.SubDir)"
         $targetPath = "$targetDir/$($model.Name)"
         
@@ -435,41 +580,85 @@ function Install-ComfyUIModels {
         # Check if model already exists
         if (Test-Path $targetPath) {
             $fileSize = (Get-Item $targetPath).Length / 1GB
-            Write-Success "Model '$($model.Name)' already exists ($([math]::Round($fileSize, 2)) GB)"
+            Write-Success "✓ Model already exists: $($model.Name) ($([math]::Round($fileSize, 1)) GB)"
+            $skippedCount++
             continue
         }
         
-        Write-Info "Downloading $($model.Description): $($model.Name)"
-        Write-Info "This may take a significant amount of time depending on your connection..."
-        Write-Warning "Note: These models are very large (several GB each)"
+        Write-Host ""
+        Write-Info "📦 Downloading: $($model.Description)"
+        Write-Info "   File: $($model.Name) (~$($model.SizeGB) GB)"
+        Write-Info "   Progress: $($downloadedCount + $skippedCount + 1)/$($modelsToDownload.Count)"
+        
+        $downloadSuccess = $false
         
         try {
             # Try using curl if available (faster and more reliable for large files)
             if (Test-Command "curl") {
-                Write-Info "Using curl for download..."
-                curl -L -o $targetPath $model.Url
+                Write-Info "   Using curl for download..."
+                $process = Start-Process -FilePath "curl" -ArgumentList @("-L", "-o", $targetPath, $model.Url, "--progress-bar") -NoNewWindow -Wait -PassThru
+                $downloadSuccess = ($process.ExitCode -eq 0)
             }
             else {
-                Write-Info "Using PowerShell for download..."
+                Write-Info "   Using PowerShell for download..."
                 # Use .NET WebClient for better performance on large files
                 $webClient = New-Object System.Net.WebClient
+                
+                # Add progress callback for large files
+                $webClient.add_DownloadProgressChanged({
+                    param($sender, $e)
+                    $percent = $e.ProgressPercentage
+                    if ($percent % 10 -eq 0) {  # Show progress every 10%
+                        Write-Host "   Progress: $percent%" -ForegroundColor Cyan
+                    }
+                })
+                
                 $webClient.DownloadFile($model.Url, $targetPath)
                 $webClient.Dispose()
+                $downloadSuccess = $true
             }
             
-            $fileSize = (Get-Item $targetPath).Length / 1GB
-            Write-Success "Downloaded $($model.Name) successfully ($([math]::Round($fileSize, 2)) GB)"
+            if ($downloadSuccess -and (Test-Path $targetPath)) {
+                $fileSize = (Get-Item $targetPath).Length / 1GB
+                Write-Success "✓ Downloaded successfully: $($model.Name) ($([math]::Round($fileSize, 1)) GB)"
+                $downloadedCount++
+            } else {
+                throw "Download completed but file not found"
+            }
         }
         catch {
-            Write-Warning "Failed to download $($model.Name): $_"
-            Write-Info "You can download it manually from: $($model.Url)"
-            Write-Info "Save it to: $targetPath"
+            Write-Warning "✗ Failed to download $($model.Name): $_"
+            Write-Info "  Manual download URL: $($model.Url)"
+            Write-Info "  Save to: $targetPath"
+            $failedCount++
             
             # Clean up partial download
             if (Test-Path $targetPath) {
                 Remove-Item $targetPath -Force -ErrorAction SilentlyContinue
             }
         }
+    }
+    
+    # Download summary
+    Write-Host ""
+    Write-Step "Model Download Summary"
+    Write-Success "✓ Downloaded: $downloadedCount models"
+    if ($skippedCount -gt 0) {
+        Write-Info "⚬ Skipped (already exist): $skippedCount models"
+    }
+    if ($failedCount -gt 0) {
+        Write-Warning "✗ Failed: $failedCount models"
+        Write-Info "Failed models can be downloaded manually later"
+    }
+    
+    $actualDownloadedSize = 0
+    if ($downloadedCount -gt 0) {
+        # Calculate actual downloaded size
+        $downloadedModels = $modelsToDownload | Where-Object { 
+            Test-Path "$modelsPath/$($_.SubDir)/$($_.Name)" 
+        }
+        $actualDownloadedSize = ($downloadedModels | Measure-Object -Property SizeGB -Sum).Sum
+        Write-Info "Total downloaded size: ~$([math]::Round($actualDownloadedSize, 1)) GB"
     }
 }
 
@@ -541,6 +730,13 @@ function Show-Summary {
     Write-Info "3. Access ComfyUI at: http://127.0.0.1:8188"
     Write-Info "4. Run the VideoGenerationApp"
     
+    if (-not $ModelsDownloaded) {
+        Write-Host "`n"
+        Write-Warning "Models were not downloaded. To download them later:"
+        Write-Info "• Essential models only: .\install.ps1 -SkipOllama -SkipPython -SkipComfyUI"
+        Write-Info "• All models: .\install.ps1 -SkipOllama -SkipPython -SkipComfyUI -DownloadAllModels"
+    }
+    
     Write-Host "`n"
     Write-Success "Installation completed!"
 }
@@ -556,6 +752,22 @@ try {
 
     Write-Info "OS Detected: $(if ($IsWindowsOS) { 'Windows' } elseif ($IsLinuxOS) { 'Linux' } elseif ($IsMacOS) { 'macOS' } else { 'Unknown' })"
     Write-Info "PowerShell Version: $($PSVersionTable.PSVersion)"
+    
+    # Show download information upfront
+    if (-not $SkipComfyUI -and -not $SkipModels) {
+        Write-Host "`n"
+        Write-Warning "📥 MODEL DOWNLOAD INFORMATION"
+        Write-Host "This script will download AI models for ComfyUI:" -ForegroundColor Yellow
+        if ($DownloadAllModels) {
+            Write-Host "• All models (essential + optional): ~25+ GB total" -ForegroundColor Red
+            Write-Host "• Includes advanced models for extended functionality" -ForegroundColor Cyan
+        } else {
+            Write-Host "• Essential models only: ~15 GB total" -ForegroundColor Yellow
+            Write-Host "• Use -DownloadAllModels for optional models (~10 GB additional)" -ForegroundColor Cyan
+        }
+        Write-Host "• Downloads will be confirmed before starting" -ForegroundColor Green
+        Write-Host ""
+    }
     
     $ollamaInstalled = $false
     $pythonChecked = $false
@@ -596,7 +808,7 @@ try {
         
         # Download models
         if (-not $SkipModels) {
-            Install-ComfyUIModels -ComfyUIPath $resolvedComfyUIPath
+            Install-ComfyUIModels -ComfyUIPath $resolvedComfyUIPath -DownloadAll $DownloadAllModels
             $modelsDownloaded = $true
         }
         else {
