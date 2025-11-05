@@ -382,8 +382,8 @@ namespace VideoGenerationApp.IntegrationTests
             Assert.Contains("\"image\":", formattedPrompt);
             Assert.Contains("\"lyrics\":", formattedPrompt);
             Assert.Contains("\"tags\":", formattedPrompt);
-            Assert.Contains("\"positive_prompts\":", formattedPrompt);
-            Assert.Contains("\"negative_prompts\":", formattedPrompt);
+            Assert.Contains("\"positive_prompt\":", formattedPrompt);
+            Assert.Contains("\"negative_prompt\":", formattedPrompt);
         }
 
         [Fact]
@@ -402,12 +402,12 @@ namespace VideoGenerationApp.IntegrationTests
                     ""tags"": [""clear voice"", ""background music"", ""natural sound""]
                 },
                 ""video"": {
-                    ""positive_prompts"": [""high resolution"", ""vibrant colors"", ""cinematic lighting""],
-                    ""negative_prompts"": [""blurry"", ""dark"", ""low quality""]
+                    ""positive_prompt"": ""high resolution, vibrant colors, cinematic lighting"",
+                    ""negative_prompt"": ""blurry, dark, low quality""
                 },
                 ""image"": {
-                    ""positive_prompts"": [""sharp focus"", ""bright colors"", ""detailed textures""],
-                    ""negative_prompts"": [""pixelated"", ""dull colors"", ""overexposed""]
+                    ""positive_prompt"": ""sharp focus, bright colors, detailed textures"",
+                    ""negative_prompt"": ""pixelated, dull colors, overexposed""
                 }
             }";
 
