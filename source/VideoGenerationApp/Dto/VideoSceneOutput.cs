@@ -15,6 +15,16 @@ namespace VideoGenerationApp.Dto
         public AudioSection audio { get; set; } = new();
         
         /// <summary>
+        /// Video-specific instructions for generation
+        /// </summary>
+        public VideoSection video { get; set; } = new();
+        
+        /// <summary>
+        /// Image-specific instructions for generation
+        /// </summary>
+        public ImageSection image { get; set; } = new();
+        
+        /// <summary>
         /// Path to the generated audio file (relative to wwwroot or absolute path)
         /// </summary>
         public string audio_file_path { get; set; } = string.Empty;

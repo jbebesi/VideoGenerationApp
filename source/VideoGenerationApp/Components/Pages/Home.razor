@@ -1,50 +1,253 @@
 ﻿@page "/"
 
-<PageTitle>Video Generation App</PageTitle>
+<PageTitle>AI Media Generation Studio</PageTitle>
 
 <div class="container-fluid">
     <div class="row">
         <div class="col-lg-8">
             <h1 class="display-4 fw-bold text-primary mb-4">
                 <i class="bi bi-camera-video text-primary me-3"></i>
-                Video Generation App
+                AI Media Generation Studio
             </h1>
             
             <p class="lead mb-4">
-                Transform your ideas into structured video content using the power of AI and local language models.
+                Create comprehensive multimedia content using AI-powered tools for text, images, audio, and video generation.
             </p>
 
+            <!-- Core Capabilities Overview -->
             <div class="row g-4 mb-5">
-                <div class="col-md-6">
+                <div class="col-lg-6">
                     <div class="card h-100 border-0 shadow-sm">
                         <div class="card-body">
                             <h5 class="card-title text-primary">
-                                <i class="bi bi-robot me-2"></i>
-                                AI-Powered Content Generation
+                                <i class="bi bi-chat-text me-2"></i>
+                                Text Generation with Ollama
                             </h5>
                             <p class="card-text">
-                                Leverage Ollama's local language models to generate structured JSON output for video scenes, including narratives, emotions, visual descriptions, and avatar actions.
+                                Generate structured content using local language models. Create detailed prompts, descriptions, and narratives for multimedia projects with complete privacy.
                             </p>
+                            <ul class="list-unstyled small">
+                                <li><i class="bi bi-check2 text-success me-1"></i> Local LLM integration</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> Structured JSON output</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> Multi-field content generation</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
                 
-                <div class="col-md-6">
+                <div class="col-lg-6">
                     <div class="card h-100 border-0 shadow-sm">
                         <div class="card-body">
-                            <h5 class="card-title text-success">
-                                <i class="bi bi-diagram-3 me-2"></i>
-                                Structured Output
+                            <h5 class="card-title text-warning">
+                                <i class="bi bi-image me-2"></i>
+                                Image Generation
                             </h5>
                             <p class="card-text">
-                                Generate detailed video scene descriptions with specific fields: narrative, tone, emotion, voice style, visual description, and video actions for complete scene planning.
+                                Create high-quality images using Stable Diffusion models. Support for various aspect ratios, advanced sampling methods, and precise control parameters.
                             </p>
+                            <ul class="list-unstyled small">
+                                <li><i class="bi bi-check2 text-success me-1"></i> Stable Diffusion integration</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> 512-2048px resolution support</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> Advanced sampling & CFG control</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-lg-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-info">
+                                <i class="bi bi-music-note-beamed me-2"></i>
+                                Audio Generation
+                            </h5>
+                            <p class="card-text">
+                                Generate music and audio content using ACE Step models. Create songs with lyrics, specify genres, voice styles, and musical arrangements.
+                            </p>
+                            <ul class="list-unstyled small">
+                                <li><i class="bi bi-check2 text-success me-1"></i> Music generation with lyrics</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> Genre & style control</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> 30-300 second duration</li>
+                            </ul>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="col-lg-6">
+                    <div class="card h-100 border-0 shadow-sm">
+                        <div class="card-body">
+                            <h5 class="card-title text-danger">
+                                <i class="bi bi-camera-video me-2"></i>
+                                Video Generation
+                            </h5>
+                            <p class="card-text">
+                                Create videos from images with optional audio synchronization using WAN 2.2 models. Support for multiple model sets and advanced video processing.
+                            </p>
+                            <ul class="list-unstyled small">
+                                <li><i class="bi bi-check2 text-success me-1"></i> Image-to-video conversion</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> Audio-visual synchronization</li>
+                                <li><i class="bi bi-check2 text-success me-1"></i> Multiple quality presets</li>
+                            </ul>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <h3 class="mb-3">How It Works</h3>
+            <!-- Detailed Feature Breakdown -->
+            <div class="row mb-5">
+                <div class="col-12">
+                    <h3 class="mb-4">Comprehensive Generation Features</h3>
+                    
+                    <div class="accordion" id="featuresAccordion">
+                        <!-- Text Generation -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="textGenerationHeading">
+                                <button class="accordion-button" type="button" data-bs-toggle="collapse" data-bs-target="#textGenerationCollapse">
+                                    <i class="bi bi-chat-text me-2"></i>
+                                    <strong>Text Generation Capabilities</strong>
+                                </button>
+                            </h2>
+                            <div id="textGenerationCollapse" class="accordion-collapse collapse show" data-bs-parent="#featuresAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="text-primary">Core Features:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Local Ollama model integration</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Multiple language model support</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Structured JSON output generation</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Multi-field content parsing</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Cross-page data sharing</li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-primary">Generated Content Types:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Positive & negative prompts</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Visual descriptions</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Audio tags & lyrics</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Narrative & tone specifications</li>
+                                                <li><i class="bi bi-arrow-right text-primary me-2"></i>Scene planning & structure</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Image Generation -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="imageGenerationHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#imageGenerationCollapse">
+                                    <i class="bi bi-image me-2"></i>
+                                    <strong>Image Generation Capabilities</strong>
+                                </button>
+                            </h2>
+                            <div id="imageGenerationCollapse" class="accordion-collapse collapse" data-bs-parent="#featuresAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="text-warning">Generation Parameters:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Resolution: 512-2048px (64px steps)</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Steps: 1-150 (recommended 20-50)</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>CFG Scale: 1-30 (recommended 7-12)</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Multiple sampler algorithms</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Reproducible seeds</li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-warning">Advanced Features:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Positive & negative prompting</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Quality enhancement tags</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Style and artistic control</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Ollama output integration</li>
+                                                <li><i class="bi bi-arrow-right text-warning me-2"></i>Batch generation support</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Audio Generation -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="audioGenerationHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#audioGenerationCollapse">
+                                    <i class="bi bi-music-note-beamed me-2"></i>
+                                    <strong>Audio Generation Capabilities</strong>
+                                </button>
+                            </h2>
+                            <div id="audioGenerationCollapse" class="accordion-collapse collapse" data-bs-parent="#featuresAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="text-info">Music Creation:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>ACE Step model integration</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Lyrics-based generation</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Genre & style tags</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Voice type specification</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Duration: 30-300 seconds</li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-info">Technical Controls:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Generation steps: 20-100</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>CFG scale: 1-20</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Lyrics strength: 0.0-1.0</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Multiple samplers & schedulers</li>
+                                                <li><i class="bi bi-arrow-right text-info me-2"></i>Batch size: 1-4 variants</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Video Generation -->
+                        <div class="accordion-item">
+                            <h2 class="accordion-header" id="videoGenerationHeading">
+                                <button class="accordion-button collapsed" type="button" data-bs-toggle="collapse" data-bs-target="#videoGenerationCollapse">
+                                    <i class="bi bi-camera-video me-2"></i>
+                                    <strong>Video Generation Capabilities</strong>
+                                </button>
+                            </h2>
+                            <div id="videoGenerationCollapse" class="accordion-collapse collapse" data-bs-parent="#featuresAccordion">
+                                <div class="accordion-body">
+                                    <div class="row">
+                                        <div class="col-md-6">
+                                            <h6 class="text-danger">Model Sets:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>WAN 2.2 Lightning (4 steps)</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>WAN 2.2 Standard (20 steps)</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>WAN 2.2 BF16 (High Quality)</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>Automatic model compatibility</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>LoRA enhancement support</li>
+                                            </ul>
+                                        </div>
+                                        <div class="col-md-6">
+                                            <h6 class="text-danger">Video Features:</h6>
+                                            <ul class="list-unstyled">
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>Image-to-video conversion</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>Audio synchronization</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>Multi-segment concatenation</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>Frame rates: 8-30 FPS</li>
+                                                <li><i class="bi bi-arrow-right text-danger me-2"></i>Resolution: up to 640x640</li>
+                                            </ul>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Workflow & Quick Start -->
+            <h3 class="mb-3">Complete Workflow</h3>
             <div class="row g-3 mb-4">
                 <div class="col-12">
                     <div class="d-flex align-items-center mb-3">
@@ -52,8 +255,8 @@
                             <strong>1</strong>
                         </div>
                         <div>
-                            <h6 class="mb-1">Connect to Ollama</h6>
-                            <small class="text-muted">Choose from available local language models running on your Ollama instance</small>
+                            <h6 class="mb-1">Setup Local Models</h6>
+                            <small class="text-muted">Install Ollama and ComfyUI with required models for text, image, audio, and video generation</small>
                         </div>
                     </div>
                 </div>
@@ -64,8 +267,8 @@
                             <strong>2</strong>
                         </div>
                         <div>
-                            <h6 class="mb-1">Provide Your Topic</h6>
-                            <small class="text-muted">Enter a topic or concept you want to create video content about</small>
+                            <h6 class="mb-1">Generate Text Content</h6>
+                            <small class="text-muted">Use AI models to create structured prompts, descriptions, and content for multimedia projects</small>
                         </div>
                     </div>
                 </div>
@@ -76,67 +279,160 @@
                             <strong>3</strong>
                         </div>
                         <div>
-                            <h6 class="mb-1">Generate Structured Content</h6>
-                            <small class="text-muted">Receive detailed JSON output with all the components needed for video production</small>
+                            <h6 class="mb-1">Create Visual Assets</h6>
+                            <small class="text-muted">Generate high-quality images using Stable Diffusion with precise control over style and composition</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                            <strong>4</strong>
+                        </div>
+                        <div>
+                            <h6 class="mb-1">Produce Audio Content</h6>
+                            <small class="text-muted">Create music and audio tracks with lyrics, genre specifications, and voice styling</small>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="col-12">
+                    <div class="d-flex align-items-center mb-3">
+                        <div class="bg-primary text-white rounded-circle d-flex align-items-center justify-content-center me-3" style="width: 40px; height: 40px;">
+                            <strong>5</strong>
+                        </div>
+                        <div>
+                            <h6 class="mb-1">Generate Final Video</h6>
+                            <small class="text-muted">Combine images and audio into synchronized video content with multiple quality options</small>
                         </div>
                     </div>
                 </div>
             </div>
 
-            <div class="alert alert-info d-flex align-items-center" role="alert">
-                <i class="bi bi-info-circle me-2"></i>
+            <!-- Quick Start Actions -->
+            <div class="alert alert-info d-flex align-items-start" role="alert">
+                <i class="bi bi-lightbulb me-3 mt-1"></i>
                 <div>
-                    <strong>Privacy First:</strong> This application uses local Ollama models, ensuring your data stays on your machine and maintains complete privacy.
+                    <strong>Quick Start Tips:</strong>
+                    <ul class="mb-0 mt-2">
+                        <li>Start with text generation to create structured content</li>
+                        <li>Use the generated prompts in image generation for consistency</li>
+                        <li>Create audio that matches your content theme and mood</li>
+                        <li>Combine everything in video generation for complete multimedia</li>
+                    </ul>
+                </div>
+            </div>
+
+            <div class="alert alert-success d-flex align-items-center" role="alert">
+                <i class="bi bi-shield-check me-2"></i>
+                <div>
+                    <strong>Privacy & Performance:</strong> All processing uses local models, ensuring your creative content remains private while delivering professional-quality results.
                 </div>
             </div>
 
             <div class="d-flex gap-3 mt-4">
-                <a href="/ollama-models" class="btn btn-primary btn-lg">
+                <a href="/text-generation" class="btn btn-primary btn-lg">
                     <i class="bi bi-arrow-right me-2"></i>
-                    Get Started
+                    Start with Text Generation
                 </a>
-                <a href="https://ollama.ai" target="_blank" class="btn btn-outline-secondary btn-lg">
-                    <i class="bi bi-box-arrow-up-right me-2"></i>
-                    Learn About Ollama
+                <a href="/generate-image" class="btn btn-outline-warning btn-lg">
+                    <i class="bi bi-image me-2"></i>
+                    Generate Images
+                </a>
+                <a href="/generate-audio" class="btn btn-outline-info btn-lg">
+                    <i class="bi bi-music-note-beamed me-2"></i>
+                    Create Audio
+                </a>
+                <a href="/generate-video" class="btn btn-outline-danger btn-lg">
+                    <i class="bi bi-camera-video me-2"></i>
+                    Make Videos
                 </a>
             </div>
         </div>
 
         <div class="col-lg-4">
-            <div class="card border-0 shadow-sm">
+            <div class="card border-0 shadow-sm mb-4">
                 <div class="card-header bg-light">
                     <h6 class="card-title mb-0">
                         <i class="bi bi-gear me-2"></i>
-                        Features
+                        Platform Features
                     </h6>
                 </div>
                 <div class="card-body">
                     <ul class="list-unstyled mb-0">
                         <li class="mb-3">
                             <i class="bi bi-check-circle text-success me-2"></i>
-                            Local AI model integration with Ollama
+                            <strong>Local AI Integration:</strong> Ollama & ComfyUI
                         </li>
                         <li class="mb-3">
                             <i class="bi bi-check-circle text-success me-2"></i>
-                            Structured JSON output for video scenes
+                            <strong>Text Generation:</strong> Structured content creation
                         </li>
                         <li class="mb-3">
                             <i class="bi bi-check-circle text-success me-2"></i>
-                            Narrative and visual description generation
+                            <strong>Image Creation:</strong> Stable Diffusion up to 2048px
                         </li>
                         <li class="mb-3">
                             <i class="bi bi-check-circle text-success me-2"></i>
-                            Emotion and tone specification
+                            <strong>Music Production:</strong> Lyrics-based audio generation
                         </li>
                         <li class="mb-3">
                             <i class="bi bi-check-circle text-success me-2"></i>
-                            Avatar action recommendations
+                            <strong>Video Synthesis:</strong> Image-to-video with audio sync
+                        </li>
+                        <li class="mb-3">
+                            <i class="bi bi-check-circle text-success me-2"></i>
+                            <strong>Cross-Platform:</strong> Shared content between generators
                         </li>
                         <li class="mb-0">
                             <i class="bi bi-check-circle text-success me-2"></i>
-                            Real-time model status and management
+                            <strong>Privacy First:</strong> All processing stays local
                         </li>
                     </ul>
+                </div>
+            </div>
+
+            <div class="card border-0 shadow-sm">
+                <div class="card-header bg-light">
+                    <h6 class="card-title mb-0">
+                        <i class="bi bi-info-circle me-2"></i>
+                        Technical Requirements
+                    </h6>
+                </div>
+                <div class="card-body">
+                    <ul class="list-unstyled mb-0">
+                        <li class="mb-2">
+                            <i class="bi bi-cpu me-2"></i>
+                            <strong>Ollama:</strong> Local LLM server
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-gpu-card me-2"></i>
+                            <strong>ComfyUI:</strong> AI image/video/audio processing
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-memory me-2"></i>
+                            <strong>VRAM:</strong> 8GB+ recommended for high quality
+                        </li>
+                        <li class="mb-2">
+                            <i class="bi bi-hdd me-2"></i>
+                            <strong>Storage:</strong> Models require ~10-50GB space
+                        </li>
+                        <li class="mb-0">
+                            <i class="bi bi-speedometer2 me-2"></i>
+                            <strong>Performance:</strong> GPU acceleration supported
+                        </li>
+                    </ul>
+                    <div class="mt-3">
+                        <a href="https://ollama.ai" target="_blank" class="btn btn-outline-primary btn-sm me-2">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>
+                            Get Ollama
+                        </a>
+                        <a href="https://github.com/comfyanonymous/ComfyUI" target="_blank" class="btn btn-outline-secondary btn-sm">
+                            <i class="bi bi-box-arrow-up-right me-1"></i>
+                            Get ComfyUI
+                        </a>
+                    </div>
                 </div>
             </div>
         </div>

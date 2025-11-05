@@ -72,19 +72,15 @@ namespace VideoGenerationApp.IntegrationTests
                 emotion = "joyful",
                 audio = new AudioSection
                 {
-                    background_music = "acoustic guitar",
-                    audio_mood = "serene",
-                    sound_effects = new List<string> { "birds chirping", "gentle breeze" },
-                    volume_levels = "music: soft, effects: medium"
+                    lyrics = "Morning birds singing peacefully",
+                    tags = new List<string> { "acoustic guitar", "serene", "birds chirping", "gentle breeze" }
                 }
             };
 
             // Act
             var tagParts = new List<string>();
-            if (!string.IsNullOrEmpty(sceneOutput.audio.background_music))
-                tagParts.Add(sceneOutput.audio.background_music);
-            if (!string.IsNullOrEmpty(sceneOutput.audio.audio_mood))
-                tagParts.Add(sceneOutput.audio.audio_mood);
+            if (sceneOutput.audio.tags != null && sceneOutput.audio.tags.Count > 0)
+                tagParts.AddRange(sceneOutput.audio.tags);
             if (!string.IsNullOrEmpty(sceneOutput.tone))
                 tagParts.Add(sceneOutput.tone);
             if (!string.IsNullOrEmpty(sceneOutput.emotion))
@@ -93,7 +89,7 @@ namespace VideoGenerationApp.IntegrationTests
             var tags = string.Join(", ", tagParts);
 
             // Assert
-            Assert.Equal("acoustic guitar, serene, uplifting, joyful", tags);
+            Assert.Equal("acoustic guitar, serene, birds chirping, gentle breeze, uplifting, joyful", tags);
         }
 
         [Fact]

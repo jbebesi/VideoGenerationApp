@@ -379,20 +379,20 @@
             </div>
 
             <!-- Multi-Field Ollama Reference -->
-            @if (OutputState.MultiFieldOutput != null)
+            @if (OutputState.ParsedOutput?.video != null && (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.positive_prompt) || !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.negative_prompt)))
             {
                 <div class="parameter-section">
-                    <h5><i class="bi bi-layers me-2"></i>Multi-Field Ollama Output</h5>
+                    <h5><i class="bi bi-layers me-2"></i>Structured Ollama Output</h5>
                     <div class="row">
-                        @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+                        @if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.positive_prompt))
                         {
                             <div class="col-md-6 mb-3">
                                 <div class="card">
                                     <div class="card-header bg-success text-white py-2">
-                                        <small><strong>Positive Prompt</strong> (@OutputState.GetFieldContent(ContentFieldType.PositivePrompt).Length chars)</small>
+                                        <small><strong>Positive Prompt</strong> (@OutputState.ParsedOutput.video.positive_prompt.Length chars)</small>
                                     </div>
                                     <div class="card-body py-2">
-                                        <small>@OutputState.GetFieldContent(ContentFieldType.PositivePrompt)</small>
+                                        <small>@OutputState.ParsedOutput.video.positive_prompt</small>
                                         <div class="mt-2">
                                             <button class="btn btn-sm btn-outline-success" @onclick="() => UsePositivePrompt()">
                                                 <i class="bi bi-arrow-down me-1"></i>Use as Text Prompt
@@ -403,15 +403,15 @@
                             </div>
                         }
 
-                        @if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+                        @if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.negative_prompt))
                         {
                             <div class="col-md-6 mb-3">
                                 <div class="card">
                                     <div class="card-header bg-warning text-dark py-2">
-                                        <small><strong>Negative Prompt</strong> (@OutputState.GetFieldContent(ContentFieldType.NegativePrompt).Length chars)</small>
+                                        <small><strong>Negative Prompt</strong> (@OutputState.ParsedOutput.video.negative_prompt.Length chars)</small>
                                     </div>
                                     <div class="card-body py-2">
-                                        <small>@OutputState.GetFieldContent(ContentFieldType.NegativePrompt)</small>
+                                        <small>@OutputState.ParsedOutput.video.negative_prompt</small>
                                         <div class="mt-2">
                                             <button class="btn btn-sm btn-outline-warning" @onclick="() => UseNegativePrompt()">
                                                 <i class="bi bi-arrow-down me-1"></i>Use as Negative Prompt
@@ -422,8 +422,8 @@
                             </div>
                         }
                     </div>
-                    
-                    @if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt) && OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+
+                    @if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.positive_prompt) && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.negative_prompt))
                     {
                         <div class="text-center">
                             <button class="btn btn-primary" @onclick="UseAllVideoPrompts">
@@ -431,28 +431,6 @@
                             </button>
                         </div>
                     }
-                </div>
-            }
-
-            <!-- Legacy Ollama Scene Reference -->
-            @if (OutputState.ParsedOutput != null)
-            {
-                <div class="parameter-section">
-                    <h5><i class="bi bi-file-text me-2"></i>Legacy Ollama Scene Reference</h5>
-                    <div class="card">
-                        <div class="card-body">
-                            <p><strong>Narrative:</strong> @OutputState.ParsedOutput.narrative</p>
-                            <p><strong>Visual Description:</strong> @OutputState.ParsedOutput.visual_description</p>
-                            <p><strong>Mood:</strong> @OutputState.ParsedOutput.tone (@OutputState.ParsedOutput.emotion)</p>
-                            @if (OutputState.ParsedOutput.video_actions != null && OutputState.ParsedOutput.video_actions.Any())
-                            {
-                                <p><strong>Suggested Actions:</strong> @string.Join(", ", OutputState.ParsedOutput.video_actions)</p>
-                            }
-                            <button class="btn btn-sm btn-outline-primary" @onclick="UseOllamaPrompt">
-                                <i class="bi bi-arrow-down me-1"></i>Use Scene as Prompt
-                            </button>
-                        </div>
-                    </div>
                 </div>
             }
         </div>
@@ -594,34 +572,37 @@
 
     private void UsePositivePrompt()
     {
-        if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+        if (OutputState.ParsedOutput?.video != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.positive_prompt))
         {
-            videoWrapper.TextPrompt = OutputState.GetFieldContent(ContentFieldType.PositivePrompt);
+            videoWrapper.TextPrompt = OutputState.ParsedOutput.video.positive_prompt;
             StateHasChanged();
         }
     }
 
     private void UseNegativePrompt()
     {
-        if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
+        if (OutputState.ParsedOutput?.video != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.negative_prompt))
         {
-            videoWrapper.NegativePrompt = OutputState.GetFieldContent(ContentFieldType.NegativePrompt);
+            videoWrapper.NegativePrompt = OutputState.ParsedOutput.video.negative_prompt;
             StateHasChanged();
         }
     }
 
     private void UseAllVideoPrompts()
     {
-        if (OutputState.HasFieldContent(ContentFieldType.PositivePrompt))
+        if (OutputState.ParsedOutput?.video != null)
         {
-            videoWrapper.TextPrompt = OutputState.GetFieldContent(ContentFieldType.PositivePrompt);
+            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.positive_prompt))
+            {
+                videoWrapper.TextPrompt = OutputState.ParsedOutput.video.positive_prompt;
+            }
+
+            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.video.negative_prompt))
+            {
+                videoWrapper.NegativePrompt = OutputState.ParsedOutput.video.negative_prompt;
+            }
         }
 
-        if (OutputState.HasFieldContent(ContentFieldType.NegativePrompt))
-        {
-            videoWrapper.NegativePrompt = OutputState.GetFieldContent(ContentFieldType.NegativePrompt);
-        }
-        
         StateHasChanged();
     }
 

@@ -10,8 +10,9 @@ namespace VideoGenerationApp.Services
         private string? _selectedModel;
         private string _prompt = string.Empty;
         private string _output = string.Empty;
-        private VideoSceneOutput? _parsedOutput;
-        private MultiFieldOutput? _multiFieldOutput;
+        private VideoSceneOutput? _videoScene;
+        private AudioSection? _audioInputs;
+        private ImageSection? _imageInputs;
         private DateTimeOffset? _timestampUtc;
 
         public string? SelectedModel 
@@ -34,14 +35,26 @@ namespace VideoGenerationApp.Services
         
         public VideoSceneOutput? ParsedOutput 
         { 
-            get { lock(_lock) return _parsedOutput; }
-            set { lock(_lock) _parsedOutput = value; }
+            get { lock(_lock) return _videoScene; }
+            set { lock(_lock) _videoScene = value; }
         }
-        
-        public MultiFieldOutput? MultiFieldOutput 
-        { 
-            get { lock(_lock) return _multiFieldOutput; }
-            set { lock(_lock) _multiFieldOutput = value; }
+
+        /// <summary>
+        /// Audio generation inputs extracted from the Ollama response
+        /// </summary>
+        public AudioSection? AudioInputs
+        {
+            get { lock(_lock) return _audioInputs; }
+            set { lock(_lock) _audioInputs = value; }
+        }
+
+        /// <summary>
+        /// Image generation inputs extracted from the Ollama response
+        /// </summary>
+        public ImageSection? ImageInputs
+        {
+            get { lock(_lock) return _imageInputs; }
+            set { lock(_lock) _imageInputs = value; }
         }
         
         public DateTimeOffset? TimestampUtc 
@@ -59,7 +72,9 @@ namespace VideoGenerationApp.Services
                 _selectedModel = selectedModel;
                 _prompt = prompt;
                 _output = output;
-                _parsedOutput = null; // Will be set separately
+                _videoScene = null; // Will be set separately
+                _audioInputs = null;
+                _imageInputs = null;
                 _timestampUtc = DateTimeOffset.UtcNow;
             }
             Changed?.Invoke();
@@ -72,7 +87,9 @@ namespace VideoGenerationApp.Services
                 _selectedModel = selectedModel;
                 _prompt = prompt;
                 _output = output;
-                _parsedOutput = parsedOutput;
+                _videoScene = parsedOutput;
+                _audioInputs = parsedOutput?.audio;
+                _imageInputs = parsedOutput?.image;
                 _timestampUtc = DateTimeOffset.UtcNow;
             }
             Changed?.Invoke();
@@ -82,60 +99,11 @@ namespace VideoGenerationApp.Services
         {
             lock (_lock)
             {
-                _parsedOutput = parsedOutput;
+                _videoScene = parsedOutput;
+                _audioInputs = parsedOutput?.audio;
+                _imageInputs = parsedOutput?.image;
             }
             Changed?.Invoke();
-        }
-
-        /// <summary>
-        /// Sets multi-field output generated from multiple prompts
-        /// </summary>
-        public void SetMultiField(string? selectedModel, MultiFieldOutput multiFieldOutput)
-        {
-            lock (_lock)
-            {
-                _selectedModel = selectedModel;
-                _multiFieldOutput = multiFieldOutput;
-                
-                // Maintain backward compatibility
-                if (multiFieldOutput.LegacyOutput != null)
-                {
-                    _parsedOutput = multiFieldOutput.LegacyOutput;
-                }
-                
-                // Set combined output for legacy prompt/output fields
-                var contents = multiFieldOutput.Fields.Values
-                    .Select(f => $"{f.FieldType}: {f.GeneratedContent}")
-                    .ToList();
-                
-                _prompt = "Multi-field generation";
-                _output = string.Join("\n\n", contents);
-                
-                _timestampUtc = DateTimeOffset.UtcNow;
-            }
-            Changed?.Invoke();
-        }
-
-        /// <summary>
-        /// Gets content for a specific field type from multi-field output
-        /// </summary>
-        public string GetFieldContent(ContentFieldType fieldType)
-        {
-            lock (_lock)
-            {
-                return _multiFieldOutput?.GetContent(fieldType) ?? string.Empty;
-            }
-        }
-
-        /// <summary>
-        /// Checks if content exists for a specific field type
-        /// </summary>
-        public bool HasFieldContent(ContentFieldType fieldType)
-        {
-            lock (_lock)
-            {
-                return _multiFieldOutput?.HasContent(fieldType) ?? false;
-            }
         }
 
         public void Clear()
@@ -145,8 +113,9 @@ namespace VideoGenerationApp.Services
                 _selectedModel = null;
                 _prompt = string.Empty;
                 _output = string.Empty;
-                _parsedOutput = null;
-                _multiFieldOutput = null;
+                _videoScene = null;
+                _audioInputs = null;
+                _imageInputs = null;
                 _timestampUtc = null;
             }
             Changed?.Invoke();

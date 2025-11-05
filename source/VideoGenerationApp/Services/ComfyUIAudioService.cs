@@ -181,28 +181,15 @@ namespace VideoGenerationApp.Services
             // Add audio-specific information from scene
             if (sceneOutput.audio != null)
             {
-                if (!string.IsNullOrEmpty(sceneOutput.audio.background_music))
-                    tagParts.Add(sceneOutput.audio.background_music);
+                // Add tags from audio section
+                if (sceneOutput.audio.tags != null && sceneOutput.audio.tags.Count > 0)
+                    tagParts.AddRange(sceneOutput.audio.tags);
 
-                if (!string.IsNullOrEmpty(sceneOutput.audio.audio_mood))
-                    tagParts.Add(sceneOutput.audio.audio_mood);
-            }
-
-            // Update tags if we have any content
-            if (tagParts.Count > 0)
-            {
-                _workflowConfig.Tags = string.Join(", ", tagParts);
-            }
-
-            // Create basic lyrics from narrative if available
-            if (!string.IsNullOrEmpty(sceneOutput.narrative))
-            {
-                var narrative = sceneOutput.narrative;
-                var truncatedNarrative = narrative.Length > 100 
-                    ? narrative.Substring(0, 100) + "..." 
-                    : narrative;
-                
-                _workflowConfig.Lyrics = $"[verse]\n{truncatedNarrative}\n[chorus]\nSing with me tonight\nEverything will be alright";
+                // Use lyrics if available, otherwise create from narrative
+                if (!string.IsNullOrEmpty(sceneOutput.audio.lyrics))
+                {
+                    _workflowConfig.Lyrics = sceneOutput.audio.lyrics;
+                }
             }
         }
 
