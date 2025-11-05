@@ -2,12 +2,7 @@ using System.Collections.Generic;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
-using System.Xml.Linq;
 using VideoGenerationApp.Dto;
-using static System.Collections.Specialized.BitVector32;
-using static System.Formats.Asn1.AsnWriter;
-using static System.Net.Mime.MediaTypeNames;
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace VideoGenerationApp.Services
 {
