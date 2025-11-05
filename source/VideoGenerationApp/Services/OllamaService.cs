@@ -35,7 +35,7 @@ Tone: {{Insert tone here}}
 Generate the structured output now.
 ";
 
-public OllamaService(HttpClient httpClient, ILogger<OllamaService> logger)
+        public OllamaService(HttpClient httpClient, ILogger<OllamaService> logger)
         {
             _httpClient = httpClient;
             _logger = logger;
