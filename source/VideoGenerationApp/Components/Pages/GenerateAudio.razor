@@ -303,20 +303,20 @@
             </div>
 
             <!-- Multi-Field Ollama Reference -->
-            @if (OutputState.MultiFieldOutput != null)
+            @if (OutputState.ParsedOutput?.audio != null && ((OutputState.ParsedOutput.audio.tags?.Any() == true) || !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.audio.lyrics)))
             {
                 <div class="parameter-section">
-                    <h5><i class="bi bi-layers me-2"></i>Multi-Field Ollama Output</h5>
+                    <h5><i class="bi bi-layers me-2"></i>Structured Ollama Output</h5>
                     <div class="row">
-                        @if (OutputState.HasFieldContent(ContentFieldType.Tags))
+                        @if (OutputState.ParsedOutput.audio.tags?.Any() == true)
                         {
                             <div class="col-md-6 mb-3">
                                 <div class="card">
                                     <div class="card-header bg-info text-white py-2">
-                                        <small><strong>Tags</strong> (@OutputState.GetFieldContent(ContentFieldType.Tags).Length chars)</small>
+                                        <small><strong>Tags</strong> (@string.Join(", ", OutputState.ParsedOutput.audio.tags).Length chars)</small>
                                     </div>
                                     <div class="card-body py-2">
-                                        <small>@OutputState.GetFieldContent(ContentFieldType.Tags)</small>
+                                        <small>@string.Join(", ", OutputState.ParsedOutput.audio.tags)</small>
                                         <div class="mt-2">
                                             <button class="btn btn-sm btn-outline-info" @onclick="() => UseTags()">
                                                 <i class="bi bi-arrow-down me-1"></i>Use as Tags
@@ -327,15 +327,15 @@
                             </div>
                         }
 
-                        @if (OutputState.HasFieldContent(ContentFieldType.Lyrics))
+                        @if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.audio.lyrics))
                         {
                             <div class="col-md-6 mb-3">
                                 <div class="card">
                                     <div class="card-header bg-secondary text-white py-2">
-                                        <small><strong>Lyrics</strong> (@OutputState.GetFieldContent(ContentFieldType.Lyrics).Length chars)</small>
+                                        <small><strong>Lyrics</strong> (@OutputState.ParsedOutput.audio.lyrics.Length chars)</small>
                                     </div>
                                     <div class="card-body py-2">
-                                        <small style="white-space: pre-line;">@OutputState.GetFieldContent(ContentFieldType.Lyrics)</small>
+                                        <small style="white-space: pre-line;">@OutputState.ParsedOutput.audio.lyrics</small>
                                         <div class="mt-2">
                                             <button class="btn btn-sm btn-outline-secondary" @onclick="() => UseLyrics()">
                                                 <i class="bi bi-arrow-down me-1"></i>Use as Lyrics
@@ -346,8 +346,8 @@
                             </div>
                         }
                     </div>
-                    
-                    @if (OutputState.HasFieldContent(ContentFieldType.Tags) && OutputState.HasFieldContent(ContentFieldType.Lyrics))
+
+                    @if ((OutputState.ParsedOutput.audio.tags?.Any() == true) && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.audio.lyrics))
                     {
                         <div class="text-center">
                             <button class="btn btn-primary" @onclick="UseAllAudioContent">
@@ -355,25 +355,6 @@
                             </button>
                         </div>
                     }
-                </div>
-            }
-
-            <!-- Legacy Video Scene Content (if available) -->
-            @if (OutputState.ParsedOutput != null)
-            {
-                <div class="parameter-section">
-                    <h5><i class="bi bi-file-text me-2"></i>Legacy Video Scene Reference</h5>
-                    <div class="card">
-                        <div class="card-body">
-                            <p><strong>Narrative:</strong> @OutputState.ParsedOutput.narrative</p>
-                            <p><strong>Mood:</strong> @OutputState.ParsedOutput.tone (@OutputState.ParsedOutput.emotion)</p>
-                            @if (OutputState.ParsedOutput.audio != null)
-                            {
-                                <p><strong>Audio Guidance:</strong> @OutputState.ParsedOutput.audio.background_music 
-                                   (@OutputState.ParsedOutput.audio.audio_mood)</p>
-                            }
-                        </div>
-                    </div>
                 </div>
             }
         </div>
@@ -566,11 +547,9 @@
             // Build tags from video scene audio information
             var tagParts = new List<string>();
             
-            if (!string.IsNullOrEmpty(audio.background_music))
-                tagParts.Add(audio.background_music);
-                
-            if (!string.IsNullOrEmpty(audio.audio_mood))
-                tagParts.Add(audio.audio_mood);
+            // Add tags from audio section
+            if (audio.tags != null && audio.tags.Count > 0)
+                tagParts.AddRange(audio.tags);
             
             // Also consider the overall tone and emotion
             if (!string.IsNullOrEmpty(OutputState.ParsedOutput.tone))
@@ -581,8 +560,12 @@
             
             workflowConfig.Tags = string.Join(", ", tagParts);
             
-            // Create sample lyrics based on the narrative
-            if (!string.IsNullOrEmpty(OutputState.ParsedOutput.narrative))
+            // Use lyrics from audio section if available, otherwise create from narrative
+            if (!string.IsNullOrEmpty(audio.lyrics))
+            {
+                workflowConfig.Lyrics = audio.lyrics;
+            }
+            else if (!string.IsNullOrEmpty(OutputState.ParsedOutput.narrative))
             {
                 var narrative = OutputState.ParsedOutput.narrative;
                 workflowConfig.Lyrics = $"[verse]\n{narrative.Substring(0, Math.Min(100, narrative.Length))}\n[chorus]\nSing with me tonight\nEverything will be alright";
@@ -611,34 +594,37 @@
 
     private void UseTags()
     {
-        if (OutputState.HasFieldContent(ContentFieldType.Tags))
+        if (OutputState.ParsedOutput?.audio?.tags?.Any() == true)
         {
-            workflowConfig.Tags = OutputState.GetFieldContent(ContentFieldType.Tags);
+            workflowConfig.Tags = string.Join(", ", OutputState.ParsedOutput.audio.tags);
             StateHasChanged();
         }
     }
 
     private void UseLyrics()
     {
-        if (OutputState.HasFieldContent(ContentFieldType.Lyrics))
+        if (OutputState.ParsedOutput?.audio != null && !string.IsNullOrWhiteSpace(OutputState.ParsedOutput.audio.lyrics))
         {
-            workflowConfig.Lyrics = OutputState.GetFieldContent(ContentFieldType.Lyrics);
+            workflowConfig.Lyrics = OutputState.ParsedOutput.audio.lyrics;
             StateHasChanged();
         }
     }
 
     private void UseAllAudioContent()
     {
-        if (OutputState.HasFieldContent(ContentFieldType.Tags))
+        if (OutputState.ParsedOutput?.audio != null)
         {
-            workflowConfig.Tags = OutputState.GetFieldContent(ContentFieldType.Tags);
+            if (OutputState.ParsedOutput.audio.tags?.Any() == true)
+            {
+                workflowConfig.Tags = string.Join(", ", OutputState.ParsedOutput.audio.tags);
+            }
+
+            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.audio.lyrics))
+            {
+                workflowConfig.Lyrics = OutputState.ParsedOutput.audio.lyrics;
+            }
         }
 
-        if (OutputState.HasFieldContent(ContentFieldType.Lyrics))
-        {
-            workflowConfig.Lyrics = OutputState.GetFieldContent(ContentFieldType.Lyrics);
-        }
-        
         StateHasChanged();
     }
 

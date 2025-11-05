@@ -1,6 +1,7 @@
+using System.Collections.Generic;
 using System.Net.Http.Json;
-using System.Text.Json;
 using System.Text;
+using System.Text.Json;
 using VideoGenerationApp.Dto;
 
 namespace VideoGenerationApp.Services
@@ -13,25 +14,23 @@ namespace VideoGenerationApp.Services
         private string _promptTemplate = @"You are a multimodal content generator. Your task is to produce a structured JSON object that describes a short video scene based on the given topic and tone.
 
 The output must include the following fields:
-- ""narrative"": A short paragraph describing the core message or story.
-- ""tone"": The emotional tone (e.g., positive, negative, neutral).
-- ""emotion"": The dominant emotion expressed by the speaker (e.g., cheerful, angry, calm).
-- ""voice_style"": Description of the speaker's voice (e.g., male, deep, sarcastic).
-- ""visual_description"": What the scene should look like (e.g., background, avatar appearance).
-- ""video_actions"": A list of 2–5 actions or gestures the avatar should perform.
 - ""audio"": An object containing audio-specific instructions and preferences:
-  - ""background_music"": Type of background music or ambient sounds (e.g., ""upbeat instrumental"", ""nature sounds"", ""silence"").
-  - ""sound_effects"": List of sound effects to accompany actions (e.g., [""applause"", ""footsteps"", ""door closing""]).
-  - ""audio_mood"": Overall audio atmosphere (e.g., ""energetic"", ""calm"", ""mysterious"").
-  - ""volume_levels"": Relative volume guidance (e.g., ""speech: loud, music: soft, effects: medium"").
+  - ""lyrics"": Text of any spoken words or dialogue.
+  - ""tags"": List of keywords or phrases to enhance audio quality.
+- ""video"": An object containing video-specific instructions:
+  - ""positive_prompt"": Text of what will happen on screen.
+  - ""negative_prompt"": Text of what to avoid in the visuals.
+- ""image"": An object containing image-specific instructions:
+  - ""positive_prompt"": Text of what is in the image.
+  - ""negative_prompt"": Text of what to avoid in the image.
 
 Constraints:
 - Ensure all fields are filled.
 - Format the output as valid JSON.
 - The audio section should complement the visual and narrative elements.
 
-Topic: {{Insert topic here}}
-Tone: {{Insert tone here}}
+Topic: {{Insert topic here}}  
+Tone: {{Insert tone here}}  
 
 Generate the structured output now.
 ";
@@ -111,24 +110,28 @@ Generate the structured output now.
             }
         }
 
-        public async Task<string> SendPromptAsync(string model, string prompt)
-        {
-            var request = new OllamaPromptRequest 
-            { 
-                model = model, 
-                prompt = GetFormattedPrompt(prompt), 
-                stream = false 
-            };
-            return await SendPromptAsync(request);
-        }
-
         public async Task<string> SendPromptAsync(OllamaPromptRequest request)
         {
+            var result = await SendPromptWithTimingAsync(request);
+            return result.ResponseText;
+        }
+
+        public async Task<OllamaResponseWithTiming> SendPromptWithTimingAsync(OllamaPromptRequest request)
+        {
+            var stopwatch = System.Diagnostics.Stopwatch.StartNew();
             try
             {
-                var payload = JsonSerializer.Serialize(request);
-                _logger.LogInformation("Sending generate request to Ollama: model={Model}, tokens={MaxTokens}, temp={Temperature}", 
-                    request.model, request.max_tokens, request.temperature);
+                // Ensure stream is false for non-streaming response handling
+                request.stream = false;
+
+                var payload = JsonSerializer.Serialize(request, new JsonSerializerOptions
+                {
+                    PropertyNamingPolicy = JsonNamingPolicy.SnakeCaseLower,
+                    DefaultIgnoreCondition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull
+                });
+
+                _logger.LogInformation("Sending generate request to Ollama: model={Model}, stream={Stream}, format={Format}",
+                    request.model, request.stream, request.format);
 
                 var httpResponse = await _httpClient.PostAsync("/api/generate",
                     new StringContent(payload, Encoding.UTF8, "application/json"));
@@ -142,19 +145,44 @@ Generate the structured output now.
 
                 var json = await httpResponse.Content.ReadAsStringAsync();
                 _logger.LogDebug("Ollama raw response: {Json}", json);
-                var result = JsonSerializer.Deserialize<OllamaPromptResponse>(json);
-                var text = result?.response ?? string.Empty;
-                _logger.LogInformation("Ollama response length: {Length}", text.Length);
-                return text;
+
+                var result = JsonSerializer.Deserialize<OllamaPromptResponse>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+
+                if (result == null)
+                {
+                    _logger.LogWarning("Ollama returned null response");
+                    return new OllamaResponseWithTiming { ResponseText = string.Empty };
+                }
+
+                stopwatch.Stop();
+                
+                // Store execution time in the result for display
+                result.execution_time_ms = stopwatch.ElapsedMilliseconds;
+                
+                var responseText = result.response ?? string.Empty;
+                
+                _logger.LogInformation("Ollama response: done={Done}, done_reason={DoneReason}, eval_count={EvalCount}, total_duration={TotalDuration}ns, execution_time={ExecutionTime}ms",
+                    result.done, result.done_reason, result.eval_count, result.total_duration, result.execution_time_ms);
+
+                return new OllamaResponseWithTiming
+                {
+                    ResponseText = responseText,
+                    FullResponse = result
+                };
             }
             catch (JsonException jex)
             {
-                _logger.LogError(jex, "JSON parse error from Ollama generate");
+                stopwatch.Stop();
+                _logger.LogError(jex, "JSON parse error from Ollama generate after {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
                 throw;
             }
             catch (Exception ex)
             {
-                _logger.LogError(ex, "Error sending prompt to Ollama");
+                stopwatch.Stop();
+                _logger.LogError(ex, "Error sending prompt to Ollama after {ElapsedMs}ms", stopwatch.ElapsedMilliseconds);
                 throw;
             }
         }

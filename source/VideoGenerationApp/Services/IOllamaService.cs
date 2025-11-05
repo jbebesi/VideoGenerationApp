@@ -6,8 +6,8 @@ namespace VideoGenerationApp.Services
     {
         Task<List<string>> GetLocalModelsAsync();
         Task<List<OllamaModel>> GetLocalModelsWithDetailsAsync();
-        Task<string> SendPromptAsync(string model, string prompt);
         Task<string> SendPromptAsync(OllamaPromptRequest request);
+        Task<OllamaResponseWithTiming> SendPromptWithTimingAsync(OllamaPromptRequest request);
         string GetFormattedPrompt(string userPrompt);
         VideoSceneOutput? TryParseVideoSceneOutput(string rawResponse);
     }
