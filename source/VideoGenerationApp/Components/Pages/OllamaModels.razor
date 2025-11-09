@@ -146,19 +146,6 @@
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="col-md-6">
-                        <div class="form-group">
-                            <label for="numPredictions">
-                                Predictions
-                                <i class="bi bi-question-circle tooltip-icon" title="Number of response variants to generate internally. Usually kept at 1.0 for standard single responses. Higher values may affect quality and speed."></i>
-                            </label>
-                            <input type="number" id="numPredictions" class="form-control" @bind="numPredictions" min="1" max="5" step="1" />
-                            <div class="param-description">
-                                Internal prediction variants. Keep at 1 for standard use.
-                            </div>
-                        </div>
-                    </div>
                 </div>
             </div>
 
@@ -382,7 +369,6 @@
     int maxTokens = 8000;
     float temperature = 0.3f;
     float topP = 0.7f;
-    float numPredictions = 1f;
     string keepAlive = "3m";
     bool stream = false;
 
@@ -419,7 +405,6 @@
         maxTokens = 8000;
         temperature = 0.3f;
         topP = 0.7f;
-        numPredictions = 1f;
         keepAlive = "3m";
         stream = false;
         Logger.LogInformation("Parameters reset to defaults");
