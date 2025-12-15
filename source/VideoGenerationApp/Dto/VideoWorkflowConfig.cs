@@ -667,6 +667,54 @@ namespace VideoGenerationApp.Dto
                 ModelSamplingShift = 8.0f,
                 RecommendedSampler = "uni_pc",
                 RecommendedScheduler = "simple"
+            },
+            ["QWEN_IMAGE_FP8"] = new()
+            {
+                DisplayName = "Qwen-Image FP8 (High Quality)",
+                UNetModel = "qwen_image_fp8_e4m3fn.safetensors",
+                CLIPModel = "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+                CLIPType = "qwen_image",
+                VAEModel = "qwen_image_vae.safetensors",
+                AudioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
+                LoRAModel = null,
+                LoRAStrength = 0.0f,
+                DefaultSteps = 20,
+                DefaultCFG = 2.5f,
+                ModelSamplingShift = 3.1f,
+                RecommendedSampler = "euler",
+                RecommendedScheduler = "simple"
+            },
+            ["QWEN_IMAGE_FP8_LIGHTNING"] = new()
+            {
+                DisplayName = "Qwen-Image FP8 Lightning (Fast)",
+                UNetModel = "qwen_image_fp8_e4m3fn.safetensors",
+                CLIPModel = "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+                CLIPType = "qwen_image",
+                VAEModel = "qwen_image_vae.safetensors",
+                AudioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
+                LoRAModel = "Qwen-Image-Lightning-8steps-V1.0.safetensors",
+                LoRAStrength = 1.0f,
+                DefaultSteps = 8,
+                DefaultCFG = 1.0f,
+                ModelSamplingShift = 3.1f,
+                RecommendedSampler = "euler",
+                RecommendedScheduler = "simple"
+            },
+            ["QWEN_IMAGE_DISTILL"] = new()
+            {
+                DisplayName = "Qwen-Image Distill (Balanced)",
+                UNetModel = "qwen_image_distill_full_fp8_e4m3fn.safetensors",
+                CLIPModel = "qwen_2.5_vl_7b_fp8_scaled.safetensors",
+                CLIPType = "qwen_image",
+                VAEModel = "qwen_image_vae.safetensors",
+                AudioEncoderModel = "wav2vec2_large_english_fp16.safetensors",
+                LoRAModel = null,
+                LoRAStrength = 0.0f,
+                DefaultSteps = 10,
+                DefaultCFG = 1.0f,
+                ModelSamplingShift = 3.1f,
+                RecommendedSampler = "euler",
+                RecommendedScheduler = "simple"
             }
         };
 

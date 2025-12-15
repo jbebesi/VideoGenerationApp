@@ -52,31 +52,19 @@
                 <div class="row">
                     <div class="col-md-6">
                         <div class="form-group">
-                            <label for="modelSelect">
-                                Image Model
-                                <i class="bi bi-question-circle tooltip-icon" title="Select the image generation model to use. Different models produce different artistic styles."></i>
+                            <label for="modelSet">
+                                Model Set
+                                <i class="bi bi-question-circle tooltip-icon" title="Select the image generation model set. Qwen-Image models provide higher quality but require specific model files."></i>
                             </label>
-                            <select id="modelSelect" class="form-select" @bind="imageConfig.CheckpointName" disabled="@isLoadingModels">
-                                @if (isLoadingModels)
+                            <select id="modelSet" class="form-select" @bind="imageConfig.ModelSet" @bind:after="OnModelSetChanged">
+                                @foreach (var modelSet in ImageWorkflowConfig.ModelSets)
                                 {
-                                    <option disabled selected>Loading models...</option>
-                                }
-                                else if (availableModels == null || !availableModels.Any())
-                                {
-                                    <option disabled selected>No image models found</option>
-                                }
-                                else
-                                {
-                                    @foreach (var model in availableModels)
-                                    {
-                                        <option value="@model">@model</option>
-                                    }
+                                    <option value="@modelSet.Key">@modelSet.Value.DisplayName</option>
                                 }
                             </select>
-                            @if (availableModels != null && availableModels.Any())
-                            {
-                                <small class="form-text text-muted">@availableModels.Count model(s) available</small>
-                            }
+                            <small class="form-text text-muted">
+                                <strong>Current Model:</strong> @GetCurrentModelInfo()
+                            </small>
                         </div>
                         
                         <div class="form-group">
@@ -85,7 +73,7 @@
                                 <i class="bi bi-question-circle tooltip-icon" title="Describe what you want in the image. Be specific and use descriptive adjectives. Include quality tags like 'high quality', 'detailed', '8k' for better results."></i>
                             </label>
                             <textarea id="positivePrompt" class="form-control" rows="4" @bind="imageConfig.PositivePrompt" 
-                                placeholder="e.g., beautiful landscape, mountains, sunset, high quality, detailed"></textarea>
+                                placeholder="e.g., beautiful landscape, high quality, detailed"></textarea>
                             <small class="form-text text-muted">Describe desired elements, style, quality, and details you want in the image.</small>
                         </div>
                         
@@ -183,8 +171,11 @@
                         <span>Generate Image</span>
                     }
                 </button>
+                <button class="btn btn-outline-secondary" @onclick="ApplyModelDefaults">
+                    <i class="bi bi-arrow-clockwise me-2"></i>Apply Model Defaults
+                </button>
                 <button class="btn btn-outline-secondary" @onclick="ResetParameters">
-                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset to Defaults
+                    <i class="bi bi-arrow-counterclockwise me-2"></i>Reset All
                 </button>
             </div>
 
@@ -265,6 +256,28 @@
                     </div>
                 </div>
             </div>
+
+            <div class="parameter-section">
+                <h5><i class="bi bi-info-circle me-2"></i>Generation Info</h5>
+                <div class="card">
+                    <div class="card-body">
+                        <p><strong>Model Set:</strong> @GetCurrentModelSet().DisplayName</p>
+                        <p><strong>Model:</strong> @GetCurrentModelSet().CheckpointName</p>
+                        <p><strong>Resolution:</strong> @imageConfig.Width x @imageConfig.Height</p>
+                        <p><strong>Sampler:</strong> @imageConfig.SamplerName (@imageConfig.Scheduler)</p>
+                        <p><strong>Steps:</strong> @imageConfig.Steps | <strong>CFG:</strong> @imageConfig.CFGScale</p>
+                        <p><strong>Denoise:</strong> @imageConfig.Denoise.ToString("F2")</p>
+                        <p class="mb-0"><strong>Seed:</strong> @(imageConfig.Seed == -1 ? "Random" : imageConfig.Seed.ToString())</p>
+                    </div>
+                </div>
+                
+                <div class="alert alert-info mt-3">
+                    <small>
+                        <i class="bi bi-lightbulb me-1"></i>
+                        <strong>Tip:</strong> Qwen-Image models provide superior quality compared to traditional Stable Diffusion models, especially for detailed scenes and complex compositions.
+                    </small>
+                </div>
+            </div>
         </div>
     </div>
 </div>
@@ -293,6 +306,9 @@
         
         // Load available models
         await LoadAvailableModels();
+
+        // Apply model set defaults on initialization
+        imageConfig.ApplyModelSetDefaults();
     }
 
     private async Task LoadAvailableModels()
@@ -368,27 +384,14 @@
         }
     }
 
-    private void UseAllImagePrompts()
+    private void OnModelSetChanged()
     {
-        if (OutputState.ParsedOutput?.image != null)
-        {
-            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.image.positive_prompt))
-            {
-                imageConfig.PositivePrompt = OutputState.ParsedOutput.image.positive_prompt;
-            }
-
-            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.image.negative_prompt))
-            {
-                imageConfig.NegativePrompt = OutputState.ParsedOutput.image.negative_prompt;
-            }
-        }
-
-        StateHasChanged();
-    }
-
-    private void ResetParameters()
-    {
-        imageConfig = new ImageWorkflowConfig();
+        // Clear current prompts and settings when model set is changed
+        imageConfig.ApplyModelSetDefaults();
+        
+        // Update available models based on the selected model set
+        LoadAvailableModels();
+        
         StateHasChanged();
     }
 
@@ -409,11 +412,10 @@
 
             if (taskName.Length > 80)
                 taskName = taskName.Substring(0, 77) + "...";
-
+            
             // Use the new workflow service instead of the queue service directly
             var taskId = await ImageWorkflow.GenerateAsync(taskName, imageConfig);
 
-            // Show success message
             await JSRuntime.InvokeVoidAsync("alert",
                 $"Image generation queued successfully! Task ID: {taskId}\n\nYou can monitor progress in the Generation Queue page.");
             
@@ -430,6 +432,73 @@
             isGenerating = false;
             StateHasChanged();
         }
+    }
+
+    private bool ValidateConfig()
+    {
+        // Simple validation logic for the sake of example
+        if (string.IsNullOrWhiteSpace(imageConfig.PositivePrompt))
+        {
+            errorMessage = "Positive prompt cannot be empty.";
+            return false;
+        }
+
+        if (imageConfig.Width < 512 || imageConfig.Width > 2048)
+        {
+            errorMessage = "Width must be between 512 and 2048.";
+            return false;
+        }
+
+        if (imageConfig.Height < 512 || imageConfig.Height > 2048)
+        {
+            errorMessage = "Height must be between 512 and 2048.";
+            return false;
+        }
+
+        errorMessage = null;
+        return true;
+    }
+
+    private void ResetParameters()
+    {
+        imageConfig = new ImageWorkflowConfig();
+        LoadAvailableModels();
+        StateHasChanged();
+    }
+
+    private void ApplyModelDefaults()
+    {
+        imageConfig.ApplyModelSetDefaults();
+        StateHasChanged();
+    }
+
+    private void UseAllImagePrompts()
+    {
+        if (OutputState.ParsedOutput?.image != null)
+        {
+            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.image.positive_prompt))
+            {
+                imageConfig.PositivePrompt = OutputState.ParsedOutput.image.positive_prompt;
+            }
+
+            if (!string.IsNullOrWhiteSpace(OutputState.ParsedOutput.image.negative_prompt))
+            {
+                imageConfig.NegativePrompt = OutputState.ParsedOutput.image.negative_prompt;
+            }
+        }
+
+        StateHasChanged();
+    }
+
+    private string GetCurrentModelInfo()
+    {
+        var modelSet = GetCurrentModelSet();
+        return $"{modelSet.CheckpointName}";
+    }
+
+    private ImageModelSetConfig GetCurrentModelSet()
+    {
+        return imageConfig.GetCurrentModelSet();
     }
 
     public void Dispose()
