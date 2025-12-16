@@ -247,19 +247,6 @@ namespace VideoGenerationApp.Services
                 // Then, add widget values based on the specific node type
                 switch (node.type)
                 {
-                    case "KSampler":
-                        // KSampler widgets: [seed, control_after_generate, steps, cfg, sampler_name, scheduler, denoise]
-                        if (node.widgets_values.Length >= 7)
-                        {
-                            inputs["seed"] = node.widgets_values[0];
-                            inputs["steps"] = node.widgets_values[2];
-                            inputs["cfg"] = node.widgets_values[3];
-                            inputs["sampler_name"] = node.widgets_values[4];
-                            inputs["scheduler"] = node.widgets_values[5];
-                            inputs["denoise"] = node.widgets_values[6];
-                        }
-                        break;
-                    
                     case "CheckpointLoaderSimple":
                         // CheckpointLoaderSimple widgets: [ckpt_name]
                         if (node.widgets_values.Length >= 1)
@@ -277,7 +264,74 @@ namespace VideoGenerationApp.Services
                             inputs["batch_size"] = node.widgets_values[2];
                         }
                         break;
-
+                    
+                    case "UNETLoader":
+                        // UNETLoader widgets: [unet_name, weight_dtype]
+                        if (node.widgets_values.Length >= 2)
+                        {
+                            inputs["unet_name"] = node.widgets_values[0];
+                            inputs["weight_dtype"] = node.widgets_values[1];
+                        }
+                        break;
+                    
+                    case "CLIPLoader":
+                        // CLIPLoader widgets: [clip_name, type, weight_dtype]
+                        if (node.widgets_values.Length >= 3)
+                        {
+                            inputs["clip_name"] = node.widgets_values[0];
+                            inputs["type"] = node.widgets_values[1];
+                            inputs["weight_dtype"] = node.widgets_values[2];
+                        }
+                        break;
+                    
+                    case "VAELoader":
+                        // VAELoader widgets: [vae_name]
+                        if (node.widgets_values.Length >= 1)
+                        {
+                            inputs["vae_name"] = node.widgets_values[0];
+                        }
+                        break;
+                    
+                    case "EmptySD3LatentImage":
+                        // EmptySD3LatentImage widgets: [width, height, batch_size]
+                        if (node.widgets_values.Length >= 3)
+                        {
+                            inputs["width"] = node.widgets_values[0];
+                            inputs["height"] = node.widgets_values[1];
+                            inputs["batch_size"] = node.widgets_values[2];
+                        }
+                        break;
+                    
+                    case "ModelSamplingAuraFlow":
+                        // ModelSamplingAuraFlow widgets: [shift]
+                        if (node.widgets_values.Length >= 1)
+                        {
+                            inputs["shift"] = node.widgets_values[0];
+                        }
+                        break;
+                    
+                    case "LoraLoaderModelOnly":
+                        // LoraLoaderModelOnly widgets: [lora_name, strength_model]
+                        if (node.widgets_values.Length >= 2)
+                        {
+                            inputs["lora_name"] = node.widgets_values[0];
+                            inputs["strength_model"] = node.widgets_values[1];
+                        }
+                        break;
+                    
+                    case "KSampler":
+                        // KSampler widgets: [seed, control_after_generate, steps, cfg, sampler_name, scheduler, denoise]
+                        if (node.widgets_values.Length >= 7)
+                        {
+                            inputs["seed"] = node.widgets_values[0];
+                            inputs["steps"] = node.widgets_values[2];
+                            inputs["cfg"] = node.widgets_values[3];
+                            inputs["sampler_name"] = node.widgets_values[4];
+                            inputs["scheduler"] = node.widgets_values[5];
+                            inputs["denoise"] = node.widgets_values[6];
+                        }
+                        break;
+                    
                     case "CLIPTextEncode":
                         // CLIPTextEncode widgets: [text]
                         if (node.widgets_values.Length >= 1)
