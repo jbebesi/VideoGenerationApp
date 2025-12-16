@@ -694,7 +694,7 @@ function Install-ComfyUIModels {
     $missingSize = ($missingModels | ForEach-Object { $_.SizeGB } | Measure-Object -Sum).Sum
     
     # Display warning about download sizes
-    Write-Warning "WARNING: LARGE DOWNLOAD WARNING"
+    Write-Warning "WARNING: LARGE DOWNLOAD"
     Write-Host ""
     
     if ($existingModels.Count -gt 0) {
