@@ -152,7 +152,8 @@ namespace VideoGenerationApp.IntegrationTests
             // Arrange
             var config = new ImageWorkflowConfig
             {
-                CheckpointName = "sd_xl_base_1.0.safetensors"
+                ModelSet = "SD_1_5", // Use SD_1_5 which uses CheckpointLoaderSimple
+                CheckpointName = "v1-5-pruned-emaonly.safetensors"
             };
             _mockHandler.EnqueueJsonResponse("{\"prompt_id\": \"test-123\"}");
 
@@ -162,7 +163,31 @@ namespace VideoGenerationApp.IntegrationTests
             // Assert
             var requestBody = await _mockHandler.GetRequestBodyAsync();
             Assert.NotNull(requestBody);
-            Assert.Contains("sd_xl_base_1.0.safetensors", requestBody);
+            // For traditional checkpoints, it should appear in the CheckpointLoaderSimple node
+            // For Qwen models (default), it should appear in UNETLoader node
+            var json = JsonDocument.Parse(requestBody);
+            var promptElement = json.RootElement.GetProperty("prompt");
+            
+            bool foundCheckpoint = false;
+            foreach (var node in promptElement.EnumerateObject())
+            {
+                if (node.Value.TryGetProperty("class_type", out var classType))
+                {
+                    var nodeType = classType.GetString();
+                    if (nodeType == "CheckpointLoaderSimple" || nodeType == "UNETLoader")
+                    {
+                        var inputs = node.Value.GetProperty("inputs");
+                        // CheckpointLoaderSimple uses "ckpt_name", UNETLoader uses "unet_name"
+                        var keyName = nodeType == "CheckpointLoaderSimple" ? "ckpt_name" : "unet_name";
+                        if (inputs.TryGetProperty(keyName, out var modelName))
+                        {
+                            Assert.Equal("v1-5-pruned-emaonly.safetensors", modelName.GetString());
+                            foundCheckpoint = true;
+                        }
+                    }
+                }
+            }
+            Assert.True(foundCheckpoint, "Checkpoint/UNET name not found in workflow");
         }
 
         [Fact]
@@ -185,18 +210,21 @@ namespace VideoGenerationApp.IntegrationTests
             var json = JsonDocument.Parse(requestBody);
             var promptElement = json.RootElement.GetProperty("prompt");
             
-            // Find the EmptyLatentImage node (usually has width parameter)
+            // Find the EmptyLatentImage or EmptySD3LatentImage node (both have width parameter)
             bool foundWidth = false;
             foreach (var node in promptElement.EnumerateObject())
             {
-                if (node.Value.TryGetProperty("class_type", out var classType) && 
-                    classType.GetString() == "EmptyLatentImage")
+                if (node.Value.TryGetProperty("class_type", out var classType))
                 {
-                    var inputs = node.Value.GetProperty("inputs");
-                    if (inputs.TryGetProperty("width", out var width))
+                    var nodeType = classType.GetString();
+                    if (nodeType == "EmptyLatentImage" || nodeType == "EmptySD3LatentImage")
                     {
-                        Assert.Equal(1536, width.GetInt32());
-                        foundWidth = true;
+                        var inputs = node.Value.GetProperty("inputs");
+                        if (inputs.TryGetProperty("width", out var width))
+                        {
+                            Assert.Equal(1536, width.GetInt32());
+                            foundWidth = true;
+                        }
                     }
                 }
             }
@@ -226,14 +254,17 @@ namespace VideoGenerationApp.IntegrationTests
             bool foundHeight = false;
             foreach (var node in promptElement.EnumerateObject())
             {
-                if (node.Value.TryGetProperty("class_type", out var classType) && 
-                    classType.GetString() == "EmptyLatentImage")
+                if (node.Value.TryGetProperty("class_type", out var classType))
                 {
-                    var inputs = node.Value.GetProperty("inputs");
-                    if (inputs.TryGetProperty("height", out var height))
+                    var nodeType = classType.GetString();
+                    if (nodeType == "EmptyLatentImage" || nodeType == "EmptySD3LatentImage")
                     {
-                        Assert.Equal(2048, height.GetInt32());
-                        foundHeight = true;
+                        var inputs = node.Value.GetProperty("inputs");
+                        if (inputs.TryGetProperty("height", out var height))
+                        {
+                            Assert.Equal(2048, height.GetInt32());
+                            foundHeight = true;
+                        }
                     }
                 }
             }
@@ -485,14 +516,17 @@ namespace VideoGenerationApp.IntegrationTests
             bool foundBatchSize = false;
             foreach (var node in promptElement.EnumerateObject())
             {
-                if (node.Value.TryGetProperty("class_type", out var classType) && 
-                    classType.GetString() == "EmptyLatentImage")
+                if (node.Value.TryGetProperty("class_type", out var classType))
                 {
-                    var inputs = node.Value.GetProperty("inputs");
-                    if (inputs.TryGetProperty("batch_size", out var batchSize))
+                    var nodeType = classType.GetString();
+                    if (nodeType == "EmptyLatentImage" || nodeType == "EmptySD3LatentImage")
                     {
-                        Assert.Equal(4, batchSize.GetInt32());
-                        foundBatchSize = true;
+                        var inputs = node.Value.GetProperty("inputs");
+                        if (inputs.TryGetProperty("batch_size", out var batchSize))
+                        {
+                            Assert.Equal(4, batchSize.GetInt32());
+                            foundBatchSize = true;
+                        }
                     }
                 }
             }

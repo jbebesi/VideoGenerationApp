@@ -130,7 +130,7 @@ namespace VideoGenerationApp.Dto
                     ["cnr_id"] = "comfy-core",
                     ["ver"] = "0.3.48"
                 },
-                widgets_values = new object[] { config.Width, config.Height, 1 }
+                widgets_values = new object[] { config.Width, config.Height, config.BatchSize }
             });
 
             // CLIPTextEncode Positive (id: 6)
